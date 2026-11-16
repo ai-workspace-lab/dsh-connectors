@@ -34,7 +34,7 @@ const client = defineConfig({
   },
   outputOptions: {
     entryFileNames: 'client.js',
-    banner: 'window.__ModuleLoader__.load({ id: "@haitaopanhq/dsh-nvidia-cloud-provider", factory: (require) => {',
+    banner: 'window.__ModuleLoader__.load({ id: "@ai-workspace-lab/dsh-nvidia-cloud-provider", factory: (require) => {',
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
   },

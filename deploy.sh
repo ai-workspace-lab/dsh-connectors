@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — единая штатная точка deploy-подготовки и установки @haitaopanhq/dsh-nvidia-cloud-provider.
+# deploy.sh — единая штатная точка deploy-подготовки и установки @ai-workspace-lab/dsh-nvidia-cloud-provider.
 #
 # Режимы:
 #   bash deploy.sh check
@@ -20,7 +20,7 @@ MODE="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PACKAGE_NAME="@haitaopanhq/dsh-nvidia-cloud-provider"
+PACKAGE_NAME="@ai-workspace-lab/dsh-nvidia-cloud-provider"
 WEB_BASE="${DSH_WEB_BASE:-http://127.0.0.1:3080}"
 WEB_UNIT="${DSH_WEB_UNIT:-dsh-web.service}"
 

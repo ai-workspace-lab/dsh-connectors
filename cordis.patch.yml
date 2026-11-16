@@ -6,6 +6,6 @@
 # node_modules. Quote it: an unquoted YAML scalar starting with `@` fails.
 - insert:
     - id: llm-nvidia-nim
-      name: "@haitaopanhq/dsh-nvidia-cloud-provider"
+      name: "@ai-workspace-lab/dsh-nvidia-cloud-provider"
       config:
         apiKeyEnv: NVIDIA_API_KEY

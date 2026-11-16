@@ -1,13 +1,13 @@
-# 📦 @haitaopanhq/dsh-nvidia-cloud-provider
+# 📦 @ai-workspace-lab/dsh-nvidia-cloud-provider
 
 <div align="center">
 
 <h3>NVIDIA NIM Cloud Provider for DeepSeek Harness</h3>
 
 <p>
-  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-haitaopanhq%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
+  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-ai--workspace--lab%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
   <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/Powered_by-NVIDIA_NIM-76b900.svg?style=for-the-badge&logo=nvidia" alt="NVIDIA NIM"></a>
-  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 </div>
@@ -31,13 +31,13 @@ It registers the **`nvidia-nim`** provider route, connecting DeepSeek Harness di
 ### 1. Install
 
 ```bash
-dsh plugin add @haitaopanhq/dsh-nvidia-cloud-provider
+dsh plugin add @ai-workspace-lab/dsh-nvidia-cloud-provider
 ```
 
 Or install from GitHub directly:
 
 ```bash
-dsh plugin add github:haitaopanhq/dsh-nvidia-cloud-provider
+dsh plugin add github:ai-workspace-lab/dsh-nvidia-cloud-provider
 ```
 
 ### 2. Configure
@@ -46,7 +46,7 @@ Add to your `cordis.patch.yml`:
 
 ```yaml
 - id: llm-nvidia-nim
-  name: "@haitaopanhq/dsh-nvidia-cloud-provider"
+  name: "@ai-workspace-lab/dsh-nvidia-cloud-provider"
   config:
     apiKeyEnv: NVIDIA_API_KEY # or paste directly in Settings → NVIDIA NIM
 ```

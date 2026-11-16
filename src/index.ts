@@ -19,7 +19,7 @@ import { applyOllamaTuiSettings } from './tui-settings.ts'
 import { createUsageReader } from './usage.ts'
 import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './web.ts'
 
-export const name = '@haitaopanhq/dsh-nvidia-cloud-provider'
+export const name = '@ai-workspace-lab/dsh-nvidia-cloud-provider'
 export const inject = ['llm']
 
 export { Config, resolveConfig }

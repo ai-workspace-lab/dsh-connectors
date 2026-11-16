@@ -1,5 +1,5 @@
 {
-  "name": "@haitaopanhq/dsh-nvidia-cloud-provider",
+  "name": "@ai-workspace-lab/dsh-nvidia-cloud-provider",
   "version": "0.1.39",
   "description": "NVIDIA NIM cloud provider plugin for DeepSeek Harness (dsh).",
   "license": "MIT",
@@ -33,12 +33,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/haitaopanhq/dsh-nvidia-cloud-provider.git"
+    "url": "git+https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider.git"
   },
   "bugs": {
-    "url": "https://github.com/haitaopanhq/dsh-nvidia-cloud-provider/issues"
+    "url": "https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider/issues"
   },
-  "homepage": "https://github.com/haitaopanhq/dsh-nvidia-cloud-provider#readme",
+  "homepage": "https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider#readme",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

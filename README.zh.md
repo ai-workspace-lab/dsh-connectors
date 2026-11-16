@@ -1,13 +1,13 @@
-# 📦 @haitaopanhq/dsh-nvidia-cloud-provider
+# 📦 @ai-workspace-lab/dsh-nvidia-cloud-provider
 
 <div align="center">
 
 <h3>面向 DeepSeek Harness 的 NVIDIA NIM 云端大模型提供商插件</h3>
 
 <p>
-  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-haitaopanhq%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
+  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-ai--workspace--lab%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
   <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/Powered_by-NVIDIA_NIM-76b900.svg?style=for-the-badge&logo=nvidia" alt="NVIDIA NIM"></a>
-  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 </div>
@@ -33,13 +33,13 @@
 通过 npm 安装：
 
 ```bash
-dsh plugin add @haitaopanhq/dsh-nvidia-cloud-provider
+dsh plugin add @ai-workspace-lab/dsh-nvidia-cloud-provider
 ```
 
 或者直接通过 GitHub 仓库安装：
 
 ```bash
-dsh plugin add github:haitaopanhq/dsh-nvidia-cloud-provider
+dsh plugin add github:ai-workspace-lab/dsh-nvidia-cloud-provider
 ```
 
 ### 2. 基础配置
@@ -48,7 +48,7 @@ dsh plugin add github:haitaopanhq/dsh-nvidia-cloud-provider
 
 ```yaml
 - id: llm-nvidia-nim
-  name: "@haitaopanhq/dsh-nvidia-cloud-provider"
+  name: "@ai-workspace-lab/dsh-nvidia-cloud-provider"
   config:
     apiKeyEnv: NVIDIA_API_KEY # 或直接在 DSH 桌面端「设置 → NVIDIA NIM」中可视化配置
 ```
