@@ -262,6 +262,6 @@ export function applyOllamaTuiSettings(
     clearInterval(timer)
     remove?.()
     remove = undefined
-  }, 'dsh-ollama-cloud-provider: tui settings section')
+  }, 'dsh-nvidia-cloud-provider: tui settings section')
   return refresh
 }

@@ -30,21 +30,21 @@ test('apply registers the provider, the adapter and the expected seams', () => {
 
   apply(ctx, { apiKeyEnv: 'OLLAMA_API_KEY' })
 
-  assert.equal(name, '@goodandready/dsh-ollama-cloud-provider')
+  assert.equal(name, '@haitaopanhq/dsh-nvidia-cloud-provider')
   assert.deepEqual(inject, ['llm'])
   assert.ok(Config !== undefined)
 
   const providers = calls.find(([kind]) => kind === 'providers')?.[1]
   assert.deepEqual(providers, [{
-    provider: 'ollama-cloud',
-    displayName: 'Ollama Cloud',
-    settingsNs: 'llm-ollama-cloud',
+    provider: 'nvidia-nim',
+    displayName: 'NVIDIA NIM',
+    settingsNs: 'llm-nvidia-nim',
     settingsPath: [],
-    defaultBaseURL: 'https://ollama.com',
+    defaultBaseURL: 'https://integrate.api.nvidia.com',
   }])
 
   const registration = calls.find(([kind]) => kind === 'adapter')?.[1] as [string[], unknown] | undefined
-  assert.deepEqual(registration?.[0], ['ollama-cloud'])
+  assert.deepEqual(registration?.[0], ['nvidia-nim'])
   assert.ok(registration?.[1] instanceof OllamaCloudAdapter)
 
   const seams = calls.filter(([kind]) => kind === 'inject').map(([, deps]) => deps)

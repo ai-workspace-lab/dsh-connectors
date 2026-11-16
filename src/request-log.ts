@@ -65,7 +65,7 @@ export interface RequestHeatmap {
 /** Append-only request metadata. The path is local; no prompt or response is stored. */
 export function requestLogPath(): string {
   const home = process.env.DSH_HOME?.trim() || join(homedir(), '.dsh')
-  return join(home, 'storages', 'dsh-ollama', 'requests.jsonl')
+  return join(home, 'storages', 'dsh-nvidia', 'requests.jsonl')
 }
 
 let queue: Promise<void> = Promise.resolve()

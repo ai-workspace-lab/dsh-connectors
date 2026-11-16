@@ -14,10 +14,10 @@ export function OllamaProviderCardView(props: {
   const bars = quotaBars(report)
   const worst = worstUsedPercent(report)
   return (
-    <div className="ocl-card" data-ollama-provider-card="true">
+    <div className="ocl-card" data-nvidia-provider-card="true">
       <div className="ocl-row">
-        <strong>Ollama Cloud</strong>
-        <span className="ocl-badge">ollama-cloud</span>
+        <strong>NVIDIA NIM</strong>
+        <span className="ocl-badge">nvidia-nim</span>
         {state === null
           ? <span className="ocl-badge ocl-badge-warn">{t('loading')}</span>
           : state.key.configured

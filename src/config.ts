@@ -2,15 +2,15 @@ import z from '@deepseek-ai/schemastery'
 
 import { endpointOr } from './endpoints.ts'
 
-export const NS = 'llm-ollama-cloud'
-export const DEFAULT_API_KEY_ENV = 'OLLAMA_API_KEY'
-export const DEFAULT_API_BASE = 'https://ollama.com'
-export const DEFAULT_OPENAI_BASE = 'https://ollama.com/v1'
-export const DEFAULT_USAGE_URL = 'https://ollama.com/api/usage'
-export const DEFAULT_BALANCE_URL = 'https://ollama.com/api/balance'
-export const DEFAULT_USER_AGENT = 'dsh-ollama-cloud-provider/0.1.39'
+export const NS = 'llm-nvidia-nim'
+export const DEFAULT_API_KEY_ENV = 'NVIDIA_API_KEY'
+export const DEFAULT_API_BASE = 'https://integrate.api.nvidia.com'
+export const DEFAULT_OPENAI_BASE = 'https://integrate.api.nvidia.com/v1'
+export const DEFAULT_USAGE_URL = 'https://integrate.api.nvidia.com/v1/usage'
+export const DEFAULT_BALANCE_URL = 'https://integrate.api.nvidia.com/v1/balance'
+export const DEFAULT_USER_AGENT = 'dsh-nvidia-cloud-provider/0.1.39'
 export const DEFAULT_CONTEXT_WINDOW = 131_072
-export const DEFAULT_MAX_TOKENS = 32_768
+export const DEFAULT_MAX_TOKENS = 16_384
 export const DEFAULT_GENERATE_MAX_TOKENS = 131_072
 
 export type TransportId = 'native' | 'openai-chat'

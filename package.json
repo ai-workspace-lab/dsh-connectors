@@ -1,7 +1,7 @@
 {
-  "name": "@goodandready/dsh-ollama-cloud-provider",
+  "name": "@haitaopanhq/dsh-nvidia-cloud-provider",
   "version": "0.1.39",
-  "description": "Ollama Cloud LLM provider plugin for DeepSeek Harness (dsh).",
+  "description": "NVIDIA NIM cloud provider plugin for DeepSeek Harness (dsh).",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
@@ -83,8 +83,8 @@
     "dsh",
     "dsh-plugin",
     "deepseek-harness",
-    "ollama",
-    "ollama-cloud",
+    "nvidia",
+    "nvidia-nim",
     "llm-provider"
   ],
   "peerDependencies": {

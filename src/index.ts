@@ -19,7 +19,7 @@ import { applyOllamaTuiSettings } from './tui-settings.ts'
 import { createUsageReader } from './usage.ts'
 import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './web.ts'
 
-export const name = '@goodandready/dsh-ollama-cloud-provider'
+export const name = '@haitaopanhq/dsh-nvidia-cloud-provider'
 export const inject = ['llm']
 
 export { Config, resolveConfig }
@@ -44,7 +44,7 @@ export { clearCatalogCache, describeModel, effectiveModel } from './catalog.ts'
  * without a restart.
  */
 export function apply(ctx: Context, config: Config): void {
-  const logger = ctx.logger('llm-ollama-cloud')
+  const logger = ctx.logger('llm-nvidia-nim')
   setBestEffortLogger({ debug: (message) => logger.debug(message), warn: (message) => logger.warn(message) })
   const current = () => resolveConfig(unwrapVolatileConfig(config))
   const keys = createKeyPool(ctx, current)
@@ -54,19 +54,33 @@ export function apply(ctx: Context, config: Config): void {
     resolveKey: (provider) => keys.resolve(provider),
     resolveKeys: (provider) => keys.resolveAll(provider),
     resolveAttachments: () => ctx.get('attachments'),
-    warn: (message) => ctx.logger('llm-ollama-cloud').warn(message),
+    warn: (message) => ctx.logger('llm-nvidia-nim').warn(message),
   })
 
   ctx.llm.registerConfigurableProviders([{
     provider: PROVIDER,
-    displayName: 'Ollama Cloud',
+    displayName: 'NVIDIA NIM',
     settingsNs: NS,
     settingsPath: [],
-    defaultBaseURL: 'https://ollama.com',
+    defaultBaseURL: 'https://integrate.api.nvidia.com',
   }])
   ctx.llm.registerAdapter([PROVIDER], adapter)
   logger.info(`registered provider: ${PROVIDER}`)
-  ctx.effect(() => () => { void flushRequestLog() }, 'dsh-ollama-cloud-provider: flush request log')
+  if (typeof (ctx.llm as { registerModelDiscovery?: unknown }).registerModelDiscovery === 'function') {
+    ctx.llm.registerModelDiscovery(NS, async (_request, signal) => {
+      const ids = await refreshCatalog(current(), fetch, true)
+      return ids.map((id) => {
+        const eff = effectiveModel(id, current())
+        return {
+          id: eff.id,
+          name: eff.name,
+          contextWindow: eff.contextWindow,
+          maxTokens: eff.maxTokens,
+        }
+      })
+    })
+  }
+  ctx.effect(() => () => { void flushRequestLog() }, 'dsh-nvidia-cloud-provider: flush request log')
 
   ctx.effect(() => {
     const initial = current()
@@ -90,7 +104,7 @@ export function apply(ctx: Context, config: Config): void {
       if (warm !== undefined) clearTimeout(warm)
       if (timer !== undefined) clearInterval(timer)
     }
-  }, 'dsh-ollama-cloud-provider: catalog refresh scheduler')
+  }, 'dsh-nvidia-cloud-provider: catalog refresh scheduler')
 
   // The plugin ships its own UI; declaring that keeps SettingsForms from
   // publishing an auto-generated page for this entry.
@@ -106,7 +120,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.inject(['tuiSettingsSections'], (tuiCtx) => {
     refreshTuiSettings = applyOllamaTuiSettings(tuiCtx, {
       ns: NS,
-      title: 'Ollama Cloud',
+      title: 'NVIDIA NIM',
       apiKeyRef: () => current().apiKeyEnv,
       accountSlots: () => [
         { id: 'default', label: 'default' },
@@ -140,11 +154,11 @@ export function apply(ctx: Context, config: Config): void {
     }
     webCtx.effect(
       () => webCtx.web.registerSearchProvider(new OllamaWebSearchProvider(options)),
-      'dsh-ollama-cloud-provider: web search provider',
+      'dsh-nvidia-cloud-provider: web search provider',
     )
     webCtx.effect(
       () => webCtx.web.registerFetchProvider(new OllamaWebFetchProvider(options)),
-      'dsh-ollama-cloud-provider: web fetch provider',
+      'dsh-nvidia-cloud-provider: web fetch provider',
     )
   })
 
@@ -158,9 +172,9 @@ export function apply(ctx: Context, config: Config): void {
       refreshTui: () => refreshTuiSettings?.(),
     })
     webCtx.effect(() => registerPluginUpdater(webCtx, {
-      endpoint: '/dsh-ollama/update',
-      packageName: '@goodandready/dsh-ollama-cloud-provider',
+      endpoint: '/dsh-nvidia/update',
+      packageName: '@goodandready/dsh-nvidia-cloud-provider',
       manifestUrl: new URL('../package.json', import.meta.url),
-    }), 'dsh-ollama-cloud-provider: plugin updater')
+    }), 'dsh-nvidia-cloud-provider: plugin updater')
   })
 }

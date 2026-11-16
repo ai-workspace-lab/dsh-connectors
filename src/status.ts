@@ -1,6 +1,6 @@
 import type { ResolvedConfig } from './config.ts'
 import { safeErrorMessage } from './sanitize.ts'
-import { tagsUrlFor } from './routing.ts'
+import { modelsUrlFor } from './routing.ts'
 
 export interface ServiceStatus {
   ok: boolean
@@ -13,7 +13,7 @@ export interface ServiceStatus {
 const PROBE_TIMEOUT_MS = 5_000
 
 /**
- * Probe the public Ollama Cloud tag endpoint. This request carries no key and
+ * Probe the public NVIDIA NIM models endpoint. This request carries no key and
  * does not consume quota; it only answers whether the configured API base is
  * reachable from this host.
  */
@@ -25,7 +25,7 @@ export async function probeService(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
   try {
-    const response = await fetchImpl(tagsUrlFor(config), {
+    const response = await fetchImpl(modelsUrlFor(config), {
       method: 'GET',
       signal: controller.signal,
       headers: { accept: 'application/json' },
@@ -66,7 +66,7 @@ export async function probeServiceCached(
   fetchImpl: typeof fetch = fetch,
   now: () => number = Date.now,
 ): Promise<ServiceStatus> {
-  const key = tagsUrlFor(config)
+  const key = modelsUrlFor(config)
   const at = now()
   if (cached !== undefined && cached.key === key && at - cached.at < STATUS_CACHE_MS) {
     return cached.value

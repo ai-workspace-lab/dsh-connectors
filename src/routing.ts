@@ -9,7 +9,8 @@ export function rootFor(config: ResolvedConfig): string {
 }
 
 export function modelsUrlFor(config: ResolvedConfig): string {
-  return `${rootFor(config)}/v1/models`
+  const root = rootFor(config)
+  return root.endsWith('/v1') ? `${root}/models` : `${root}/v1/models`
 }
 
 export function tagsUrlFor(config: ResolvedConfig): string {

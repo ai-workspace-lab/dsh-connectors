@@ -537,12 +537,12 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     return true
   }
 
-  route('/dsh-ollama/state', async (req, res) => {
+  route('/dsh-nvidia/state', async (req, res) => {
     if (!(await privateRead(req, res))) return
     await refreshAndState(ctx, deps, res)
   })
 
-  route('/dsh-ollama/health', async (req, res) => {
+  route('/dsh-nvidia/health', async (req, res) => {
     if (!readOnly(req, res)) return
     try {
       const config = deps.config()
@@ -564,7 +564,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/status', async (req, res) => {
+  route('/dsh-nvidia/status', async (req, res) => {
     if (!readOnly(req, res)) return
     try {
       json(res, 200, await probeServiceCached(deps.config(), fetch))
@@ -579,7 +579,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/analytics', async (req, res) => {
+  route('/dsh-nvidia/analytics', async (req, res) => {
     if (!(await privateRead(req, res))) return
     const url = new URL(req.url ?? '/', 'http://localhost')
     const requested = Number(url.searchParams.get('days') ?? '30')
@@ -595,7 +595,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/usage', async (req, res) => {
+  route('/dsh-nvidia/usage', async (req, res) => {
     if (!(await privateRead(req, res))) return
     const url = new URL(req.url ?? '/', 'http://localhost')
     const raw = url.searchParams.get('range') ?? '7d'
@@ -608,7 +608,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/balance', async (req, res) => {
+  route('/dsh-nvidia/balance', async (req, res) => {
     if (!(await privateRead(req, res))) return
     try {
       const result = await deps.usage.read()
@@ -618,13 +618,13 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/cooldowns/reset', async (req, res) => {
+  route('/dsh-nvidia/cooldowns/reset', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     deps.adapter.clearCooldowns?.()
     json(res, 200, { ok: true })
   })
 
-  route('/dsh-ollama/config', async (req, res) => {
+  route('/dsh-nvidia/config', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const settings = getSettings(ctx)
     if (settings?.mutate === undefined) {
@@ -660,7 +660,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/key', async (req, res) => {
+  route('/dsh-nvidia/key', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const credentials = getCredentials(ctx)
     if (credentials === undefined) {
@@ -688,7 +688,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/key/clear', async (req, res) => {
+  route('/dsh-nvidia/key/clear', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const credentials = getCredentials(ctx)
     if (credentials === undefined) {
@@ -711,7 +711,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/refresh', async (req, res) => {
+  route('/dsh-nvidia/refresh', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const gate = refreshGuard.begin()
     if (gate !== 'ok') {
@@ -727,7 +727,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/models/refresh', async (req, res) => {
+  route('/dsh-nvidia/models/refresh', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const gate = modelsGuard.begin()
     if (gate !== 'ok') {
@@ -750,7 +750,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/discover', async (req, res) => {
+  route('/dsh-nvidia/discover', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const gate = discoverGuard.begin()
     if (gate !== 'ok') {
@@ -778,7 +778,7 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
     }
   })
 
-  route('/dsh-ollama/test', async (req, res) => {
+  route('/dsh-nvidia/test', async (req, res) => {
     if (!(await requirePost(req, res, verifyHost))) return
     const gate = testGuard.begin()
     if (gate !== 'ok') {
@@ -843,5 +843,5 @@ export function applyRoutes(ctx: Context, web: WebServer, deps: RouteDeps): void
 
   ctx.effect(() => () => {
     for (const dispose of disposers.splice(0)) dispose()
-  }, 'dsh-ollama-cloud-provider: HTTP routes')
+  }, 'dsh-nvidia-cloud-provider: HTTP routes')
 }

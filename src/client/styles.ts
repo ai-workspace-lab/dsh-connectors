@@ -1,4 +1,4 @@
-export const CSS_ID = 'dsh-ollama-cloud-provider'
+export const CSS_ID = 'dsh-nvidia-cloud-provider'
 
 export const CSS = `
 :where(.ocl-page, .ocl-panel, .ocl-card, .ocl-foot, .ocl-railButton) {

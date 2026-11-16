@@ -26,8 +26,8 @@ test('native provider card shows provider, key and model count', () => {
   const html = renderToStaticMarkup(
     <OllamaProviderCardView t={(key) => key} state={state} />,
   )
-  assert.match(html, /Ollama Cloud/)
-  assert.match(html, /ollama-cloud/)
+  assert.match(html, /NVIDIA NIM/)
+  assert.match(html, /nvidia-nim/)
   assert.match(html, /keyConfigured/)
   assert.match(html, /2/)
   assert.match(html, /25%/)

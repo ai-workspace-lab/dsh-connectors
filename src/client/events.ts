@@ -1,1 +1,1 @@
-export const CONFIG_CHANGED_EVENT = 'dsh-ollama-config-changed'
+export const CONFIG_CHANGED_EVENT = 'dsh-nvidia-config-changed'

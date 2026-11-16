@@ -19,6 +19,7 @@ const CATALOG_TIMEOUT_MS = 15_000
 
 interface LiveModel {
   slug?: unknown
+  id?: unknown
   display_name?: unknown
   context_window?: unknown
   max_context_window?: unknown
@@ -27,10 +28,13 @@ interface LiveModel {
   default_reasoning_level?: unknown
   visibility?: unknown
   supported_in_api?: unknown
+  model_type?: unknown
+  supports_thinking?: unknown
+  supports_tools?: unknown
 }
 
 interface ModelsPayload {
-  data?: Array<{ id?: unknown }>
+  data?: Array<LiveModel | { id?: unknown }>
   models?: LiveModel[]
 }
 
@@ -101,24 +105,31 @@ function capabilitiesByModel(tags: TagsPayload | undefined): Map<string, Set<str
 }
 
 function metaFromLive(entry: LiveModel, caps: Set<string> | undefined): OllamaCloudModelMeta {
-  const id = str(entry.slug) ?? ''
+  const id = str(entry.slug) ?? str(entry.id) ?? ''
   const base = GENERATED_MODELS[id]
   const levels = effortNames(entry.supported_reasoning_levels)
-  const thinking = caps?.has('thinking') === true || levels.length > 0
+  const isThinkingExplicit = entry.supports_thinking === true || caps?.has('thinking') === true || levels.length > 0
+  const thinking = isThinkingExplicit || id.includes('reason') || id.includes('r1')
   const toggle = thinking && levels.length === 0
   const modalities = strings(entry.input_modalities)
+  const isVlm = entry.model_type === 'vlm' || id.includes('vl') || id.includes('clip')
   const image = modalities.includes('image')
+    || isVlm
     || (base?.input.includes('image') === true && modalities.length === 0)
+  const defaultLevels = levels.length > 0 ? levels : (base?.reasoning ?? (thinking ? ['low', 'medium', 'high'] : []))
   const normalized = normalizeThinking(
     id,
-    levels.length > 0 ? levels : (base?.reasoning ?? []),
+    defaultLevels,
     toggle || base?.reasoningToggle === true,
     str(entry.default_reasoning_level) ?? base?.defaultReasoning,
   )
+  const tools = entry.supports_tools !== undefined
+    ? entry.supports_tools === true
+    : (caps?.has('tools') === true || base?.tools === true || (!id.includes('embed') && !id.includes('video') && !id.includes('reward')))
   return {
     id,
     name: str(entry.display_name) ?? id,
-    transport: base?.transport ?? 'native',
+    transport: base?.transport ?? 'openai-chat',
     contextWindow: num(entry.context_window)
       ?? num(entry.max_context_window)
       ?? base?.contextWindow
@@ -127,8 +138,8 @@ function metaFromLive(entry: LiveModel, caps: Set<string> | undefined): OllamaCl
     input: image ? ['text', 'image'] : ['text'],
     reasoning: normalized.reasoning,
     reasoningToggle: toggle || base?.reasoningToggle === true,
-    tools: caps?.has('tools') === true || base?.tools === true || base === undefined,
-    free: base?.free === true,
+    tools,
+    free: base?.free !== false,
     available: entry.supported_in_api !== false && entry.visibility !== 'hide',
     ...(normalized.defaultReasoning === undefined
       ? {}
@@ -240,7 +251,9 @@ async function refreshNow(
   if (modelsResult.status === 'fulfilled') {
     const payload = modelsResult.value as ModelsPayload
     const tags = tagsResult.status === 'fulfilled' ? tagsResult.value as TagsPayload : undefined
-    const live = Array.isArray(payload.models) ? payload.models : []
+    const live = Array.isArray(payload.models) && payload.models.length > 0
+      ? payload.models
+      : (Array.isArray(payload.data) ? (payload.data as LiveModel[]) : [])
     if (live.length > 0) {
       const ids = adoptLive(live, tags, key)
       if (ids.length > 0) {

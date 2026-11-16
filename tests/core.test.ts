@@ -7,7 +7,7 @@ import test from 'node:test'
 import { CONTEXT_WINDOW_EXCEEDED_CODE, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 
 import { clearCatalogCache, effectiveModel, modelAvailable, modelVisible, refreshCatalog, sortForPicker } from '../src/catalog.ts'
-import { DEFAULT_API_BASE, DEFAULT_OPENAI_BASE, resolveConfig } from '../src/config.ts'
+import { DEFAULT_API_BASE, DEFAULT_API_KEY_ENV, DEFAULT_OPENAI_BASE, resolveConfig } from '../src/config.ts'
 import { classifyResponseError } from '../src/errors.ts'
 import { buildChatBody, buildNativeBody, buildNativeMessages } from '../src/messages.ts'
 import { estimateCost, priceFor } from '../src/pricing.ts'
@@ -27,7 +27,7 @@ test('resolved config carries Ollama defaults', () => {
   assert.equal(config.apiBase, DEFAULT_API_BASE)
   assert.equal(config.openAiBase, DEFAULT_OPENAI_BASE)
   assert.equal(config.transport, 'native')
-  assert.equal(config.apiKeyEnv, 'OLLAMA_API_KEY')
+  assert.equal(config.apiKeyEnv, DEFAULT_API_KEY_ENV)
   assert.equal(config.maxOutputTokens, undefined)
   assert.equal(config.autoRefresh, true)
   assert.equal(config.refreshMinutes, 1440)

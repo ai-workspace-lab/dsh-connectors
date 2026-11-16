@@ -189,19 +189,19 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function fetchState(): Promise<HostState> {
-  return call<HostState>('/dsh-ollama/state')
+  return call<HostState>('/dsh-nvidia/state')
 }
 
 export function fetchServiceStatus(): Promise<ServiceStatus> {
-  return call<ServiceStatus>('/dsh-ollama/status')
+  return call<ServiceStatus>('/dsh-nvidia/status')
 }
 
 export function refreshState(): Promise<HostState> {
-  return call<HostState>('/dsh-ollama/refresh', { method: 'POST', body: '{}' })
+  return call<HostState>('/dsh-nvidia/refresh', { method: 'POST', body: '{}' })
 }
 
 export function refreshModels(): Promise<HostState> {
-  return call<HostState>('/dsh-ollama/models/refresh', { method: 'POST', body: '{}' })
+  return call<HostState>('/dsh-nvidia/models/refresh', { method: 'POST', body: '{}' })
 }
 
 export interface DiscoveryResult {
@@ -210,22 +210,22 @@ export interface DiscoveryResult {
 }
 
 export function discoverModels(apiBase: string, apiKey: string): Promise<DiscoveryResult> {
-  return call<DiscoveryResult>('/dsh-ollama/discover', {
+  return call<DiscoveryResult>('/dsh-nvidia/discover', {
     method: 'POST',
     body: JSON.stringify({ apiBase, apiKey }),
   })
 }
 
 export function resetCooldowns(): Promise<{ ok: true }> {
-  return call('/dsh-ollama/cooldowns/reset', { method: 'POST', body: '{}' })
+  return call('/dsh-nvidia/cooldowns/reset', { method: 'POST', body: '{}' })
 }
 
 export function saveConfig(patch: Record<string, unknown>): Promise<{ ok: true }> {
-  return call('/dsh-ollama/config', { method: 'POST', body: JSON.stringify({ patch }) })
+  return call('/dsh-nvidia/config', { method: 'POST', body: JSON.stringify({ patch }) })
 }
 
 export function fetchUsage(range: '24h' | '7d' | '30d'): Promise<UsageState> {
-  return call(`/dsh-ollama/usage?range=${encodeURIComponent(range)}`)
+  return call(`/dsh-nvidia/usage?range=${encodeURIComponent(range)}`)
 }
 
 export interface UpdateStatus {
@@ -241,11 +241,11 @@ export interface UpdateStatus {
 }
 
 export function fetchUpdate(): Promise<UpdateStatus> {
-  return call<UpdateStatus>('/dsh-ollama/update')
+  return call<UpdateStatus>('/dsh-nvidia/update')
 }
 
 export function installUpdate(): Promise<UpdateStatus> {
-  return call<UpdateStatus>('/dsh-ollama/update', {
+  return call<UpdateStatus>('/dsh-nvidia/update', {
     method: 'POST',
     headers: { 'x-dsh-plugin-update': '1' },
     body: '{}',
@@ -253,11 +253,11 @@ export function installUpdate(): Promise<UpdateStatus> {
 }
 
 export function saveKey(ref: string, key: string): Promise<{ ok: true }> {
-  return call('/dsh-ollama/key', { method: 'POST', body: JSON.stringify({ ref, key }) })
+  return call('/dsh-nvidia/key', { method: 'POST', body: JSON.stringify({ ref, key }) })
 }
 
 export function clearKey(ref: string): Promise<{ ok: true }> {
-  return call('/dsh-ollama/key/clear', { method: 'POST', body: JSON.stringify({ ref }) })
+  return call('/dsh-nvidia/key/clear', { method: 'POST', body: JSON.stringify({ ref }) })
 }
 
 export interface TestResult {
@@ -383,9 +383,9 @@ export interface AnalyticsReport {
 }
 
 export function fetchAnalytics(days = 30): Promise<AnalyticsReport> {
-  return call(`/dsh-ollama/analytics?days=${encodeURIComponent(String(days))}`)
+  return call(`/dsh-nvidia/analytics?days=${encodeURIComponent(String(days))}`)
 }
 
 export function testConnection(model: string): Promise<TestResult> {
-  return call('/dsh-ollama/test', { method: 'POST', body: JSON.stringify({ model }) })
+  return call('/dsh-nvidia/test', { method: 'POST', body: JSON.stringify({ model }) })
 }

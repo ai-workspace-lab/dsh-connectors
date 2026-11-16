@@ -96,14 +96,14 @@ test('UI action: mounting, interactive language switching and unmounting (#61)',
   })
 
   const titleEl = div.querySelector('#title')
-  assert.equal(titleEl?.textContent, 'Ollama Cloud')
+  assert.equal(titleEl?.textContent, 'NVIDIA NIM')
 
   // Switch to Chinese
   const btnZh = div.querySelector('#switch-zh') as HTMLButtonElement
   await act(async () => {
     btnZh.dispatchEvent(new win.Event('click', { bubbles: true }))
   })
-  assert.equal(titleEl?.textContent, 'Ollama Cloud')
+  assert.equal(titleEl?.textContent, 'NVIDIA NIM')
 
   // Verify another localized string changes between en and zh
   function DynamicText() {

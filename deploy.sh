@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — единая штатная точка deploy-подготовки и установки @goodandready/dsh-ollama-cloud-provider.
+# deploy.sh — единая штатная точка deploy-подготовки и установки @haitaopanhq/dsh-nvidia-cloud-provider.
 #
 # Режимы:
 #   bash deploy.sh check
@@ -20,7 +20,7 @@ MODE="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PACKAGE_NAME="@goodandready/dsh-ollama-cloud-provider"
+PACKAGE_NAME="@haitaopanhq/dsh-nvidia-cloud-provider"
 WEB_BASE="${DSH_WEB_BASE:-http://127.0.0.1:3080}"
 WEB_UNIT="${DSH_WEB_UNIT:-dsh-web.service}"
 
@@ -58,7 +58,7 @@ post_install_checks() {
   echo "profile: $listed"
 
   local health_code
-  health_code="$(curl -s -o /dev/null -w '%{http_code}' "$WEB_BASE/dsh-ollama/health" || echo "000")"
+  health_code="$(curl -s -o /dev/null -w '%{http_code}' "$WEB_BASE/dsh-nvidia/health" || echo "000")"
   if [ "$health_code" = "200" ]; then
     echo "health check: HTTP 200 OK"
   else

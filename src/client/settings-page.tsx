@@ -102,7 +102,7 @@ export function OllamaCloudSettingsPage(props: {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const [keyDraft, setKeyDraft] = useState('')
   const [accountKeys, setAccountKeys] = useState<Record<string, string>>({})
-  const [testModel, setTestModel] = useState('gpt-oss:120b')
+  const [testModel, setTestModel] = useState('deepseek-ai/deepseek-v4.1-flash')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [service, setService] = useState<ServiceStatus | null>(null)
@@ -365,7 +365,7 @@ export function OllamaCloudSettingsPage(props: {
                   setTestResult({
                     ok: false,
                     model: testModel,
-                    provider: 'ollama-cloud',
+                    provider: 'nvidia-nim',
                     latencyMs: 0,
                     error: caught instanceof Error ? caught.message : t('failed'),
                   })

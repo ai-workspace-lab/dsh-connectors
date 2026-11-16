@@ -83,7 +83,7 @@ export interface OllamaCloudAdapterDeps {
 
 function storagePath(file: string): string {
   const home = process.env.DSH_HOME?.trim() || join(homedir(), '.dsh')
-  return join(home, 'storages', 'dsh-ollama', file)
+  return join(home, 'storages', 'dsh-nvidia', file)
 }
 
 function effortName(id: string): string {
@@ -145,7 +145,7 @@ export class OllamaCloudAdapter extends LlmAdapter {
         retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
         backoff: { initialDelayMs: 500, maxDelayMs: 15_000, jitterRatio: 0.1 },
       },
-      'llm-ollama-cloud: retryPolicy',
+      'llm-nvidia-nim: retryPolicy',
     )
   }
 
@@ -252,7 +252,7 @@ export class OllamaCloudAdapter extends LlmAdapter {
       const store = this.deps.resolveAttachments?.()
       if (store === undefined) {
         throw new LlmError(
-          'llm-ollama-cloud: image input requires the durable attachment service',
+          'llm-nvidia-nim: image input requires the durable attachment service',
           'UNSUPPORTED_CONTENT',
         )
       }
@@ -264,7 +264,7 @@ export class OllamaCloudAdapter extends LlmAdapter {
       if (limited.length < options.tools.length && !this.warnedTools) {
         this.warnedTools = true
         this.deps.warn?.(
-          `llm-ollama-cloud: provider accepts at most ${MAX_TOOLS} tools; `
+          `llm-nvidia-nim: provider accepts at most ${MAX_TOOLS} tools; `
           + `${options.tools.length - limited.length} tool declaration(s) omitted`,
         )
       }
@@ -407,23 +407,23 @@ export class OllamaCloudAdapter extends LlmAdapter {
         const reasons = new Set(cooldownEntries.map((e) => e.reason))
         if (reasons.has('invalid-credential') && reasons.size === 1) {
           finalError = new LlmError(
-            `llm-ollama-cloud: every configured account is cooling down due to invalid credentials (retry in ${remainingMinutes}m)`,
+            `llm-nvidia-nim: every configured account is cooling down due to invalid credentials (retry in ${remainingMinutes}m)`,
             'INVALID_CREDENTIAL',
           )
         } else if (reasons.has('quota') && !reasons.has('rate-limit')) {
           finalError = new LlmError(
-            `llm-ollama-cloud: every configured account is cooling down due to quota limits (retry in ${remainingMinutes}m)`,
+            `llm-nvidia-nim: every configured account is cooling down due to quota limits (retry in ${remainingMinutes}m)`,
             'QUOTA',
           )
         } else {
           finalError = new LlmError(
-            `llm-ollama-cloud: every configured account is cooling down after provider rejections (retry in ${remainingMinutes}m)`,
+            `llm-nvidia-nim: every configured account is cooling down after provider rejections (retry in ${remainingMinutes}m)`,
             'RATE_LIMIT',
           )
         }
       } else {
         finalError = new LlmError(
-          'llm-ollama-cloud: every configured account is cooling down after provider rejections',
+          'llm-nvidia-nim: every configured account is cooling down after provider rejections',
           'RATE_LIMIT',
         )
       }

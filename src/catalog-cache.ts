@@ -22,7 +22,7 @@ interface CacheFile extends CatalogSnapshot {
 
 export function catalogCachePath(): string {
   const home = process.env.DSH_HOME?.trim() || join(homedir(), '.dsh')
-  return join(home, 'cache', 'dsh-ollama-cloud', 'catalog.json')
+  return join(home, 'cache', 'dsh-nvidia-cloud', 'catalog.json')
 }
 
 function isMeta(value: unknown): value is OllamaCloudModelMeta {

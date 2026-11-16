@@ -17,7 +17,7 @@ import { accountMark } from './settings-widgets.tsx'
 import { UsageAnalyticsView } from './usage-analytics.tsx'
 import { UsageBars } from './usage-bars.tsx'
 
-const PANEL_EVENT = 'dsh-ollama-panel-state'
+const PANEL_EVENT = 'dsh-nvidia-panel-state'
 
 function broadcastPanel(open: boolean): void {
   window.dispatchEvent(new CustomEvent(PANEL_EVENT, { detail: { open } }))
