@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-web'
 
 import { OllamaCloudAdapter } from './adapter.ts'
 import { setBestEffortLogger, bestEffortFailed } from './best-effort.ts'
-import { refreshCatalog } from './catalog.ts'
+import { refreshCatalog, effectiveModel } from './catalog.ts'
 import { applyCommands } from './commands.ts'
 import { Config, NS, resolveConfig, unwrapVolatileConfig } from './config.ts'
 import { createKeyPool } from './credentials.ts'

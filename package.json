@@ -23,7 +23,6 @@
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
-    "README.ru.md",
     "CHANGELOG.md",
     "LICENSE",
     "NOTICE",
@@ -34,12 +33,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GooDAnDReaDY/dsh-ollama-cloud-provider.git"
+    "url": "git+https://github.com/haitaopanhq/dsh-nvidia-cloud-provider.git"
   },
   "bugs": {
-    "url": "https://github.com/GooDAnDReaDY/dsh-ollama-cloud-provider/issues"
+    "url": "https://github.com/haitaopanhq/dsh-nvidia-cloud-provider/issues"
   },
-  "homepage": "https://github.com/GooDAnDReaDY/dsh-ollama-cloud-provider#readme",
+  "homepage": "https://github.com/haitaopanhq/dsh-nvidia-cloud-provider#readme",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

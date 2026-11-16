@@ -56,16 +56,20 @@ export function apply(ctx: Context): void {
   }, OllamaCloudSettingsPage))
 
   ctx.slots.inject('settings.models.provider-card', () => {
-    slots.register({
+    const d1 = slots.register({
       name: 'settings.models.provider-card',
       key: 'llm-nvidia-nim',
       locale: NS,
     }, OllamaProviderCard)
-    slots.register({
+    const d2 = slots.register({
       name: 'settings.models.provider-card',
       key: 'nvidia-nim',
       locale: NS,
     }, OllamaProviderCard)
+    return () => {
+      if (typeof d1 === 'function') (d1 as () => void)()
+      if (typeof d2 === 'function') (d2 as () => void)()
+    }
   })
 
   // The center-column panel the sidebar card opens. `main` is declared by

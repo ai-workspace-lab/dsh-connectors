@@ -1,206 +1,65 @@
-# 📦 @goodandready/dsh-ollama-cloud-provider
+# 📦 @haitaopanhq/dsh-nvidia-cloud-provider
 
 <div align="center">
 
-<h3>面向 DeepSeek Harness 的 Ollama Cloud 模型提供商插件</h3>
+<h3>面向 DeepSeek Harness 的 NVIDIA NIM 云端大模型提供商插件</h3>
 
 <p>
-  <a href="https://goodandready.app/"><img src="https://img.shields.io/badge/🌐_DSH_Hub-goodandready.app-ff4500.svg?style=for-the-badge&labelColor=1a1a2e" alt="GoodAndReady 展厅"></a>
-  <a href="https://www.npmjs.com/package/@goodandready/dsh-ollama-cloud-provider"><img src="https://img.shields.io/npm/v/@goodandready/dsh-ollama-cloud-provider?style=for-the-badge&color=crimson&logo=npm" alt="npm 版本"></a>
-  <a href="https://github.com/GooDAnDReaDY/dsh-ollama-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="许可证"></a>
+  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-haitaopanhq%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
+  <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/Powered_by-NVIDIA_NIM-76b900.svg?style=for-the-badge&logo=nvidia" alt="NVIDIA NIM"></a>
+  <a href="https://github.com/haitaopanhq/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 </div>
 
-<table align="center">
-  <tr>
-    <td align="center">
-      ⭐ <strong>如果您喜欢这个插件，请在 GitHub 上为它点亮 Star</strong> — 这能让我知道插件对您有用，并鼓励我继续开发和维护它。
-      <br><br>
-      🐛 <strong>如果您发现 Bug 或希望增加功能</strong>，请使用任意语言在 GitHub 上提交 Issue — 我会评估您的建议，并在后续版本中实现有价值的改进。
-    </td>
-  </tr>
-</table>
-
 ---
 
-面向 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/)（dsh）的 **Ollama Cloud** 模型提供商插件。
+面向 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (`dsh`) 的 **NVIDIA NIM** 云端模型提供商插件。
 
-插件注册一个原生 LLM 路由 `ollama-cloud`（`https://ollama.com`），支持两种底层传输协议：
+插件注册原生 LLM 路由 **`nvidia-nim`**，通过标准 OpenAI 兼容网关（`https://integrate.api.nvidia.com/v1`）无缝连接到 [build.nvidia.com](https://build.nvidia.com)，提供全球顶尖的开源与专有大模型云端推理能力。
 
-| 传输协议 | 端点 | 用途 |
-|---|---|---|
-| `native`（默认） | `POST /api/chat` | thinking、工具调用、usage 计数（NDJSON） |
-| `openai-chat` | `POST /v1/chat/completions` | OpenAI 兼容部署与备用网关（SSE） |
+## 特性亮点
 
-密钥在每次请求时动态解析：在设置中更换凭据无需重启即可立即生效。
+- **独立并行共存**：与 Ollama Cloud 或其他提供商完全物理隔离（路由、存储、客户端模块 ID 均独立），互不冲突。
+- **动态模型发现**：自动对接 `integrate.api.nvidia.com/v1/models`，智能过滤仅保留生成式对话模型，保障对话稳定。
+- **OpenAI 兼容协议流式交互**：原生支持流式输出、深度思考（Thinking/Reasoning）、工具调用（Tool Calls）及多模态图像输入。
+- **多账号轮换与智能冷却**：支持多 API 密钥配置池化管理，遭遇 429 速率限制时自动冷却并故障切换。
+- **无重启凭据管理**：凭据由本地系统安全保存，随时在设置界面更新或轮换 `NVIDIA_API_KEY`，即刻生效。
 
-## 架构示意
+## 快速上手
 
-```mermaid
-graph LR
-    subgraph DSH["DeepSeek Harness 核心"]
-        Agent["DSH 智能体 / 聊天"]
-        Creds["凭据服务 / 环境变量"]
-    end
+### 1. 安装插件
 
-    subgraph Plugin["dsh-ollama-cloud-provider"]
-        Router{"路由: ollama-cloud"}
-        Pool["多账号连接池<br/>轮换、冷却、粘性会话"]
-        Catalog["实时模型目录<br/>/v1/models + /api/tags"]
-        Usage["余额与用量监控<br/>/api/balance + /api/usage"]
-
-        subgraph Transports["底层传输协议"]
-            T1["Native /api/chat (NDJSON)"]
-            T2["OpenAI /v1/chat/completions (SSE)"]
-        end
-    end
-
-    subgraph Ollama["Ollama Cloud 云端网关"]
-        Chat["ollama.com/api/chat"]
-        OpenAI["ollama.com/v1/chat/completions"]
-        Billing["/api/balance, /api/usage"]
-    end
-
-    Agent --> Router
-    Creds -.-> Pool
-    Router --> Pool
-    Pool --> Transports
-    T1 --> Chat
-    T2 --> OpenAI
-    Catalog --> Router
-    Usage --> Billing
-```
-
-## 功能全貌
-
-- **两种底层传输协议**：按模型选择 Ollama 原生协议（NDJSON）或 OpenAI 兼容协议（SSE）。
-- **全要素流式交互**：文本、深度思考（thinking）、工具调用、多模态图像、Token 统计与 finish reasons。
-- **全局唯一工具调用 ID**：自动生成跨步不重复的工具调用标识符，彻底防止多步对话（如 PTC 预设）因 ID 冲突导致 DSH 会话日志校验失败。
-- **实时模型目录**：自动从 `GET /v1/models` 获取模型列表，并结合 `GET /api/tags` 补全能力标记（`tools`、`thinking`、`vision`）。
-- **精准模型元数据**：上下文长度、输入模态、推理等级与默认配置、工具支持状态及 API 开放性。
-- **官方余额与用量分析**：集成官方 `/api/balance` 与 `/api/usage`，呈现可用额度、已购额度、24小时/7天/30天支出及按模型细分报表。
-- **多账号智能轮换**：在输出首个 Token 之前，遇到 401/403/429 或额度耗尽自动切换至备用账号。冷却时间通过 SHA-256 哈希安全持久化。
-- **会话粘性与路由规则**：支持单会话锁定同一账号，以及基于 Glob 通配符的 `模型 → 账号` 绑定规则。
-- **成本透明估算**：依据官方发布的价目表（包含闲时优惠折扣）进行费用估算，支持按模型覆盖价格。
-- **Web UI 与交互卡片**：
-  - **设置 → Ollama Cloud**：密钥配置、余额显示、账号池管理、模型白名单与协议切换。
-  - **侧边栏配额指示卡片**：环形展示最高额度窗口（默认关闭且不产生后台轮询；可在名称旁显示 `planLabel`，例如 `PRO`）。
-  - **中央用量分析面板**：支出窗口、请求热力图与用量走势。
-- **`/ollama` 快捷指令**：快速查询状态、额度、余额、账号列表与执行联通性测试。
-- **一键热更新**：在 DSH 设置页直接检测 npm 最新版本并快速安装更新。
-
-## Requirements / 系统要求
-
-- **DeepSeek Harness**: `0.2.0-rc.2 || >=0.2.1-rc.2 <0.2.3-0 || >=0.2.2-0 <0.2.3-0`（桌面版与 Web 配置文件）。
-- **Node.js**: `>=22.0.0`。
-- **Ollama Cloud 账户**: 一个或多个有效的 Ollama Cloud API Key 或兼容的代理端点。
-
-## 安装指南
-
-从源码构建与打包：
+通过 npm 安装：
 
 ```bash
-npm install
-npm run build
-npm pack
+dsh plugin add @haitaopanhq/dsh-nvidia-cloud-provider
 ```
 
-从 npm 安装已发布版本：
+或者直接通过 GitHub 仓库安装：
 
 ```bash
-dsh plugin --profile web add @goodandready/dsh-ollama-cloud-provider@0.1.39
-# DSH 桌面端：
-dsh plugin --profile desktop add @goodandready/dsh-ollama-cloud-provider@0.1.39
+dsh plugin add github:haitaopanhq/dsh-nvidia-cloud-provider
 ```
 
-或通过打包文件安装：
+### 2. 基础配置
 
-```bash
-dsh plugin --profile web add /absolute/path/to/goodandready-dsh-ollama-cloud-provider-0.1.39.tgz
-# DSH 桌面端：
-dsh plugin --profile desktop add /absolute/path/to/goodandready-dsh-ollama-cloud-provider-0.1.39.tgz
-```
-
-安装完成后重启 dsh 或 DSH 桌面端，在模型列表中选择 **Ollama Cloud** 即可。
-
-## 配置示例
+在您的 `cordis.patch.yml` 中添加插件启用项：
 
 ```yaml
-- id: llm-ollama-cloud
-  name: "@goodandready/dsh-ollama-cloud-provider"
+- id: llm-nvidia-nim
+  name: "@haitaopanhq/dsh-nvidia-cloud-provider"
   config:
-    apiKeyEnv: OLLAMA_API_KEY      # 环境变量名或 DSH 凭据名
-    # apiKey: ...                  # 仅本地调试，严禁提交代码库
-    transport: native              # native | openai-chat
-    requestTimeoutMs: 300000
-    streamIdleTimeoutMs: 300000
-    visibleModels: []
-    modelTransports: {}
-    accounts:
-      - label: Work
-        apiKeyEnv: OLLAMA_API_KEY_2
-    activeAccount: ''              # 固定指定活跃账号
-    stickySession: true
-    showSidebarQuota: false
-    planLabel: ''                  # 可选，例如 PRO
+    apiKeyEnv: NVIDIA_API_KEY # 或直接在 DSH 桌面端「设置 → NVIDIA NIM」中可视化配置
 ```
 
-除 `apiKey` 外的所有配置项均可在 DSH 设置页直接修改。
+### 3. 使用说明
 
-### 密钥配置
+1. 打开 DeepSeek Harness **设置 → NVIDIA NIM**。
+2. 粘贴在 [build.nvidia.com](https://build.nvidia.com) 领取的 API Key（格式为 `nvapi-...`）。
+3. 点击 **保存密钥**，然后点击 **测试连接**。
+4. 在对话输入框上方的模型切换面板中选择任意 NVIDIA NIM 模型（如 `deepseek-ai/deepseek-v4.1-flash`、`mistralai/mistral-large-4-1t-a52b` 等）即可开始对话！
 
-1. DSH 配置中的 `config.apiKey`。
-2. DSH 凭据服务中的 `apiKeyEnv`（默认 `OLLAMA_API_KEY`）。
-3. 环境变量或 `$DSH_HOME/.env`。
+## 开源许可证
 
-密钥可在官方后台生成：<https://ollama.com/settings/keys>。云端网关仅接受 `Authorization: Bearer` 请求头。
-
-### 多账号轮换与冷却重置
-
-多账号在首字输出前自动轮换。鉴权失败（401/403）进入 5 分钟冷却期，配额错误遵循 Retry-After 响应头。可在设置页中通过「重置冷却」按钮或调用 `POST /dsh-ollama/cooldowns/reset` 随时清除冷却状态。
-
-### 模型到账号路由规则
-
-```yaml
-modelAccountRules:
-  - pattern: "*flash*"
-    account: "Work"
-```
-
-## 界面与视觉验收
-
-DSH Desktop（暗黑主题）中的 Ollama Cloud 设置与用量面板：
-
-![Ollama Cloud 设置](media/visual-verification.png)
-
-## 常用指令
-
-```bash
-/ollama status            # 查看服务商状态、配额与模型数
-/ollama usage             # 7 天支出与按模型细分
-/ollama balance           # 包含额度与充值额度
-/ollama accounts          # 账号池健康与支出
-/ollama models            # 模型目录与参数能力
-/ollama rules             # 模型到账号规则
-/ollama test [model]      # 发送连通性测试请求
-```
-
-## 安全说明
-
-- 写入路由要求 loopback 套接字、同源 `Origin`/`Referer` 以及宿主机认证；DNS 名称永远不会被视为 loopback。
-- API 密钥通过 DSH 凭据服务解析；浏览器只能获知是否已配置，无法读取密钥值。
-- 自定义端点必须是完整的 `http(s)` 地址，不得包含账号密码或片段；link-local 与 metadata 地址会被拒绝。
-- `/status` 缓存 10 秒；刷新、测试与端点发现路由为单飞并限流。
-
-## 限制与注意事项
-
-- 仅支持 Ollama Cloud 云端模型；不会注册本地 `http://localhost:11434` 路由。
-- 云端 API 暂不提供向量嵌入（Embeddings）模型。
-- 文件附件以文本句柄（handle）形式转发。
-- `/api/usage` 限制为每分钟 10 次请求，插件已内置本地缓存以确保顺畅使用。
-- 完整功能需要 Web 配置文件；TUI 终端环境保留 `/ollama` 命令与模型推理。
-
-## 许可证
-
-MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)。详见 [LICENSE](./LICENSE) 与 [NOTICE](./NOTICE)。
+[MIT](LICENSE)
