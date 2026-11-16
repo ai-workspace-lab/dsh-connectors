@@ -322,7 +322,7 @@ export function OllamaCloudSettingsPage(props: {
             className="ocl-button ocl-button-primary"
             disabled={keyDraft.trim() === ''}
             onClick={() => {
-              void saveKey(draft.apiKeyEnv || 'OLLAMA_API_KEY', keyDraft.trim())
+              void saveKey(draft.apiKeyEnv || 'NVIDIA_API_KEY', keyDraft.trim())
                 .then(() => { setKeyDraft(''); setNotice(t('saved')); return load(true) })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : t('failed')))
             }}
@@ -333,7 +333,7 @@ export function OllamaCloudSettingsPage(props: {
             type="button"
             className="ocl-button ocl-button-danger"
             onClick={() => {
-              void clearKey(draft.apiKeyEnv || 'OLLAMA_API_KEY')
+              void clearKey(draft.apiKeyEnv || 'NVIDIA_API_KEY')
                 .then(() => { setNotice(t('saved')); return load(true) })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : t('failed')))
             }}
@@ -557,7 +557,7 @@ export function OllamaCloudSettingsPage(props: {
               update({
                 accounts: [...draft.accounts, {
                   label: `account-${draft.accounts.length + 2}`,
-                  apiKeyEnv: `OLLAMA_API_KEY_${draft.accounts.length + 2}`,
+                  apiKeyEnv: `NVIDIA_API_KEY_${draft.accounts.length + 2}`,
                 }],
               })
             }}

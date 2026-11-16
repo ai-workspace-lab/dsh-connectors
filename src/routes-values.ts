@@ -2,7 +2,7 @@ import type { ManualModel, ModelOverride, ModelPriceOverride, TransportId } from
 
 const TRANSPORTS = new Set<TransportId>(['native', 'openai-chat'])
 
-const CREDENTIAL_REF_PATTERN = /^OLLAMA_[A-Z0-9_]+$/
+const CREDENTIAL_REF_PATTERN = /^(NVIDIA|OLLAMA)_[A-Z0-9_]+$/
 
 /** The plugin may read and write only its own credential namespace. */
 export function normalizeCredentialRef(value: unknown): string | undefined {
