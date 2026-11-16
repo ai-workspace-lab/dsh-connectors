@@ -104,8 +104,17 @@ function capabilitiesByModel(tags: TagsPayload | undefined): Map<string, Set<str
   return out
 }
 
+function isGenerativeChatModel(id: string): boolean {
+  const lower = id.toLowerCase()
+  if (lower.includes('embed') || lower.includes('rerank') || lower.includes('reward') || lower.includes('detector')) {
+    return false
+  }
+  return true
+}
+
 function metaFromLive(entry: LiveModel, caps: Set<string> | undefined): OllamaCloudModelMeta {
   const id = str(entry.slug) ?? str(entry.id) ?? ''
+  const isChat = isGenerativeChatModel(id)
   const base = GENERATED_MODELS[id]
   const levels = effortNames(entry.supported_reasoning_levels)
   const isThinkingExplicit = entry.supports_thinking === true || caps?.has('thinking') === true || levels.length > 0
@@ -140,7 +149,7 @@ function metaFromLive(entry: LiveModel, caps: Set<string> | undefined): OllamaCl
     reasoningToggle: toggle || base?.reasoningToggle === true,
     tools,
     free: base?.free !== false,
-    available: entry.supported_in_api !== false && entry.visibility !== 'hide',
+    available: isChat && entry.supported_in_api !== false && entry.visibility !== 'hide',
     ...(normalized.defaultReasoning === undefined
       ? {}
       : { defaultReasoning: normalized.defaultReasoning }),
