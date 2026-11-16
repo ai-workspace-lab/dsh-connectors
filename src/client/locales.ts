@@ -200,7 +200,7 @@ const en = {
   planLabel: 'Plan label',
   planLabelHint: 'Optional label shown on the sidebar card, for example PRO. Ollama does not expose the plan name via API.',
   usageAnalytics: 'Usage analytics',
-  analyticsEmpty: 'No Ollama Cloud sessions in this window.',
+  analyticsEmpty: 'No NVIDIA NIM sessions in this window.',
   analyticsTruncated: 'Only the newest session files were scanned; the totals are incomplete.',
   analyticsHint: 'Aggregated from the local session projection cache: numeric metadata only, no prompt text.',
   days: 'Days',

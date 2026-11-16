@@ -160,7 +160,7 @@ async function statusText(deps: CommandDeps): Promise<string> {
   const usage = await deps.usage.read()
   const models = await deps.adapter.listModels(PROVIDER, { unfiltered: true }).catch((err: unknown) => { bestEffortFailed('commands:listModels', err); return [] })
   return [
-    'Ollama Cloud provider',
+    'NVIDIA NIM provider',
     `Key: ${config.apiKeyEnv} · ${config.transport}`,
     await accountsText(deps),
     ...usageLines(usage),
@@ -172,7 +172,7 @@ async function statusText(deps: CommandDeps): Promise<string> {
 export function applyCommands(ctx: Context, deps: CommandDeps): void {
   ctx.commands.register({
     name: 'ollama',
-    description: 'Ollama Cloud status, balance, accounts, models and rules',
+    description: 'NVIDIA NIM status, balance, accounts, models and rules',
     input: { hint: 'status | usage | balance | accounts | models | rules | test [model]' },
     handler: async (invocation) => {
       const raw = invocation.rawInput.trim()

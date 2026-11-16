@@ -195,7 +195,7 @@ function localDay(at: number): string {
 }
 
 /**
- * Aggregate local session metadata by model, day and session. Only Ollama Cloud
+ * Aggregate local session metadata by model, day and session. Only NVIDIA NIM
  * routes are counted, and only numeric metadata is read — titles and message
  * content never leave the projection cache. A session that switched models is
  * attributed to the model that served its last request, so the split is

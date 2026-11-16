@@ -54,7 +54,7 @@ function isQuotaText(detail: string): boolean {
 }
 
 /**
- * Translate an Ollama Cloud HTTP failure into the harness failure taxonomy.
+ * Translate an NVIDIA NIM HTTP failure into the harness failure taxonomy.
  * Ollama reports everything as `{"error": "..."}`, so both the status and the
  * message matter.
  */
@@ -67,11 +67,11 @@ export function classifyResponseError(status: number, text: string, headers: Hea
   const quota = isQuotaText(detail)
 
   if (status === 402 || (quota && status !== 401)) {
-    return new LlmError(`Ollama Cloud quota is exhausted: ${message}`, 'QUOTA', options)
+    return new LlmError(`NVIDIA NIM quota is exhausted: ${message}`, 'QUOTA', options)
   }
   if (status === 401 || status === 403) {
     return new LlmError(
-      `Ollama Cloud rejected the credential: ${message}. Create a key at`
+      `NVIDIA NIM rejected the credential: ${message}. Create a key at`
       + ' https://ollama.com/settings/keys and store it through the credentials service.',
       'INVALID_CREDENTIAL',
       options,
@@ -79,50 +79,50 @@ export function classifyResponseError(status: number, text: string, headers: Hea
   }
   if (status === 404) {
     return new LlmError(
-      `Ollama Cloud does not serve this model: ${message}. Refresh the catalog and`
+      `NVIDIA NIM does not serve this model: ${message}. Refresh the catalog and`
       + ' check that the id matches the cloud list exactly.',
       'UNSUPPORTED_MODEL',
       options,
     )
   }
   if (status === 429) {
-    return new LlmError(`Ollama Cloud rate-limited the request: ${message}`, 'RATE_LIMIT', options)
+    return new LlmError(`NVIDIA NIM rate-limited the request: ${message}`, 'RATE_LIMIT', options)
   }
   if (isContextWindowExceededError(detail)) {
     return new LlmError(
-      `Ollama Cloud rejected the request: context window exceeded: ${message}`,
+      `NVIDIA NIM rejected the request: context window exceeded: ${message}`,
       CONTEXT_WINDOW_EXCEEDED_CODE,
       options,
     )
   }
   if (/does not support (?:images?|vision|tools?)|unsupported (?:image|tool)|image (?:input|modality) is not supported|tools? (?:are|is) not supported/i.test(detail)) {
     return new LlmError(
-      `Ollama Cloud model does not accept this request: ${message}`,
+      `NVIDIA NIM model does not accept this request: ${message}`,
       'UNSUPPORTED_MODEL',
       options,
     )
   }
   if (/request (?:body|entity) too large|payload too large|node count cannot exceed|maximum (?:request|body) size/i.test(detail)) {
     return new LlmError(
-      `Ollama Cloud rejected the request body as too large: ${message}`,
+      `NVIDIA NIM rejected the request body as too large: ${message}`,
       'PROVIDER_HTTP_ERROR',
       options,
     )
   }
   if (status === 408 || status === 504) {
-    return new LlmError(`Ollama Cloud timed out (HTTP ${status}): ${message}`, 'TIMEOUT', options)
+    return new LlmError(`NVIDIA NIM timed out (HTTP ${status}): ${message}`, 'TIMEOUT', options)
   }
   if (status === 503) {
     return new LlmError(
-      `Ollama Cloud is at its concurrency limit or temporarily unavailable: ${message}`,
+      `NVIDIA NIM is at its concurrency limit or temporarily unavailable: ${message}`,
       'SERVER',
       options,
     )
   }
   if (status >= 500) {
-    return new LlmError(`Ollama Cloud gateway error (HTTP ${status}): ${message}`, 'SERVER', options)
+    return new LlmError(`NVIDIA NIM gateway error (HTTP ${status}): ${message}`, 'SERVER', options)
   }
-  return new LlmError(`Ollama Cloud request failed (HTTP ${status}): ${message}`, 'PROVIDER_HTTP_ERROR', options)
+  return new LlmError(`NVIDIA NIM request failed (HTTP ${status}): ${message}`, 'PROVIDER_HTTP_ERROR', options)
 }
 
 /** Parse an in-band error object, when a stream reports one. */

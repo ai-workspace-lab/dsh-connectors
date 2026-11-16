@@ -19,7 +19,7 @@ async function readWithIdleTimeout(
     const timer = setTimeout(() => {
       reader.cancel().catch((err: unknown) => bestEffortFailed('sse:cancel', err))
       finish(() => reject(new LlmError(
-        `Ollama Cloud stream went idle for ${idleTimeoutMs}ms`,
+        `NVIDIA NIM stream went idle for ${idleTimeoutMs}ms`,
         'TIMEOUT',
       )))
     }, idleTimeoutMs)

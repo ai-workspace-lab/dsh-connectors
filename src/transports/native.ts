@@ -71,7 +71,7 @@ export async function* parseNativeStream(
   signal: AbortSignal | undefined,
 ): AsyncIterable<StreamChunk> {
   if (response.body === null) {
-    throw new LlmError('Ollama Cloud returned an empty response body', 'EMPTY_RESPONSE')
+    throw new LlmError('NVIDIA NIM returned an empty response body', 'EMPTY_RESPONSE')
   }
 
   let nextIndex = 0
@@ -153,7 +153,7 @@ export async function* parseNativeStream(
       const usage = usageOf(chunk)
       if (usage !== undefined) yield { type: 'usage', usage }
       if (!sawContent) {
-        throw new LlmError('Ollama Cloud completed the request without content', 'EMPTY_RESPONSE')
+        throw new LlmError('NVIDIA NIM completed the request without content', 'EMPTY_RESPONSE')
       }
       yield { type: 'finish', reason: finishReasonOf(doneReason, toolBlocks.length > 0) }
       return
@@ -161,7 +161,7 @@ export async function* parseNativeStream(
   }
 
   if (!sawContent) {
-    throw new LlmError('Ollama Cloud returned an empty stream', 'EMPTY_RESPONSE')
+    throw new LlmError('NVIDIA NIM returned an empty stream', 'EMPTY_RESPONSE')
   }
-  throw new LlmError('Ollama Cloud stream ended before done:true', 'TRANSPORT')
+  throw new LlmError('NVIDIA NIM stream ended before done:true', 'TRANSPORT')
 }

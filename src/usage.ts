@@ -157,7 +157,7 @@ export function normalizeUsage(payload: unknown, range: UsageRange): {
   return { totals: totalsOf(root.totals), byModel: groups.sort((a, b) => b.usd - a.usd) }
 }
 
-/** Cached reader for Ollama Cloud balance and usage. Fail-open by design. */
+/** Cached reader for NVIDIA NIM balance and usage. Fail-open by design. */
 export function createUsageReader(
   config: () => ResolvedConfig,
   resolveKey: KeyResolver,

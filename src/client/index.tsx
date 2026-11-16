@@ -36,7 +36,7 @@ function injectCss(): () => void {
 export const inject = ['slots', 'locale']
 
 /**
- * Browser half: the Ollama Cloud settings section, a quota card at the bottom of
+ * Browser half: the NVIDIA NIM settings section, a quota card at the bottom of
  * the sidebar, and the center panel it opens.
  */
 export function apply(ctx: Context): void {

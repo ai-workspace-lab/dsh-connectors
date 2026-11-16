@@ -79,7 +79,7 @@ export function buildOllamaTuiSection(deps: OllamaTuiSettingsDeps): TuiSettingsS
   const slots = deps.accountSlots()
   return {
     ns: deps.ns,
-    title: deps.title ?? 'Ollama Cloud',
+    title: deps.title ?? 'NVIDIA NIM',
     groups: [
       { id: 'connection', title: 'Connection' },
       { id: 'models', title: 'Models' },

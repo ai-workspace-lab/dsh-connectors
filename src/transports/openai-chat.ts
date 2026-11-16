@@ -75,7 +75,7 @@ function reasoningOf(delta: ChatDelta): string {
 }
 
 /**
- * Parse an OpenAI Chat SSE stream from Ollama Cloud. The cloud translates
+ * Parse an OpenAI Chat SSE stream from NVIDIA NIM. The cloud translates
  * provider thinking traces into one of `reasoning_content`, `reasoning`, or
  * `thinking`; all three are accepted because the field name is undocumented.
  */
@@ -85,7 +85,7 @@ export async function* parseChatStream(
   signal: AbortSignal | undefined,
 ): AsyncIterable<StreamChunk> {
   if (response.body === null) {
-    throw new LlmError('Ollama Cloud returned an empty response body', 'EMPTY_RESPONSE')
+    throw new LlmError('NVIDIA NIM returned an empty response body', 'EMPTY_RESPONSE')
   }
 
   const contentType = response.headers.get('content-type') ?? ''
@@ -120,7 +120,7 @@ export async function* parseChatStream(
     try {
       chunk = JSON.parse(data) as ChatChunk
     } catch (error) {
-      throw new LlmError('Ollama Cloud sent an invalid SSE event', 'PROVIDER_HTTP_ERROR', { cause: error })
+      throw new LlmError('NVIDIA NIM sent an invalid SSE event', 'PROVIDER_HTTP_ERROR', { cause: error })
     }
     const streamError = classifyStreamError(chunk)
     if (streamError !== undefined) throw streamError
@@ -193,10 +193,10 @@ export async function* parseChatStream(
   }
 
   if (!sawContent) {
-    throw new LlmError('Ollama Cloud completed the request without content', 'EMPTY_RESPONSE')
+    throw new LlmError('NVIDIA NIM completed the request without content', 'EMPTY_RESPONSE')
   }
   if (!terminated) {
-    throw new LlmError('Ollama Cloud stream ended before [DONE] or finish_reason', 'TRANSPORT')
+    throw new LlmError('NVIDIA NIM stream ended before [DONE] or finish_reason', 'TRANSPORT')
   }
 
   if (textIndex !== undefined) {
@@ -257,7 +257,7 @@ async function* parseCompletion(chunk: ChatChunk): AsyncIterable<StreamChunk> {
     sawContent = true
   }
   if (chunk.usage !== undefined && chunk.usage !== null) yield { type: 'usage', usage: mapUsage(chunk.usage) }
-  if (!sawContent) throw new LlmError('Ollama Cloud completed the request without content', 'EMPTY_RESPONSE')
+  if (!sawContent) throw new LlmError('NVIDIA NIM completed the request without content', 'EMPTY_RESPONSE')
   yield {
     type: 'finish',
     reason: finishReasonOf(choice?.finish_reason, (message?.tool_calls?.length ?? 0) > 0),

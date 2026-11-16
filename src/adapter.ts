@@ -134,7 +134,7 @@ export class OllamaCloudAdapter extends LlmAdapter {
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
-    return { id: provider, name: 'Ollama Cloud' }
+    return { id: provider, name: 'NVIDIA NIM' }
   }
 
   override providerRetryPolicy(_provider: string): ResolvedRetryPolicy {
@@ -356,14 +356,14 @@ export class OllamaCloudAdapter extends LlmAdapter {
       } catch (error) {
         const classified = budget.timedOut
           ? new LlmError(
-              `Ollama Cloud attempt exceeded ${config.attemptTimeoutMs}ms`,
+              `NVIDIA NIM attempt exceeded ${config.attemptTimeoutMs}ms`,
               'TIMEOUT',
               { cause: error },
             )
           : error instanceof LlmError
             ? error
             : new LlmError(
-                error instanceof Error ? redactText(error.message) : 'Ollama Cloud request failed',
+                error instanceof Error ? redactText(error.message) : 'NVIDIA NIM request failed',
                 'TRANSPORT',
                 { cause: error },
               )
@@ -574,7 +574,7 @@ export class OllamaCloudAdapter extends LlmAdapter {
         if (signal?.aborted === true) throw signal.reason ?? error
         if (timedOut) {
           const timeout = new LlmError(
-            `Ollama Cloud did not return response headers within ${config.requestTimeoutMs}ms`,
+            `NVIDIA NIM did not return response headers within ${config.requestTimeoutMs}ms`,
             'TIMEOUT',
             { cause: error },
           )
