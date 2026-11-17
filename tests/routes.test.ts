@@ -93,7 +93,7 @@ test('state route serves the catalog and write routes enforce JSON', async () =>
   }
   applyRoutes(ctx, web, { config: () => config, adapter, pool, usage, verifyHost: async () => true } as never)
 
-  const stateRoute = routes.get('/dsh-ollama/state')
+  const stateRoute = routes.get('/dsh-nvidia/state')
   assert.ok(stateRoute !== undefined)
   const res = fakeRes()
   await stateRoute({ method: 'GET', headers: { host: '127.0.0.1:3080' }, url: '/' }, res)
@@ -103,7 +103,7 @@ test('state route serves the catalog and write routes enforce JSON', async () =>
   assert.equal(body.models[0]?.id, 'gpt-oss:120b')
   assert.equal(body.key.configured, false)
 
-  const configRoute = routes.get('/dsh-ollama/config')
+  const configRoute = routes.get('/dsh-nvidia/config')
   assert.ok(configRoute !== undefined)
   const denied = fakeRes()
   await configRoute({
@@ -125,7 +125,7 @@ test('state route serves the catalog and write routes enforce JSON', async () =>
   }, sameOrigin)
   assert.equal(sameOrigin.statusCode, 415)
 
-  const keyRoute = routes.get('/dsh-ollama/key')
+  const keyRoute = routes.get('/dsh-nvidia/key')
   assert.ok(keyRoute !== undefined)
   const foreign = fakeRes()
   await keyRoute(postJson({ ref: 'OPENCODE_API_KEY', key: 'x' }), foreign)
@@ -137,14 +137,14 @@ test('state route serves the catalog and write routes enforce JSON', async () =>
   assert.equal(own.statusCode, 200)
   assert.equal(written.length, 1)
 
-  const clearRoute = routes.get('/dsh-ollama/key/clear')
+  const clearRoute = routes.get('/dsh-nvidia/key/clear')
   assert.ok(clearRoute !== undefined)
   const foreignClear = fakeRes()
   await clearRoute(postJson({ ref: 'CLINEBOT_API_KEY' }), foreignClear)
   assert.equal(foreignClear.statusCode, 400)
   assert.equal(cleared.length, 0)
 
-  const testRoute = routes.get('/dsh-ollama/test')
+  const testRoute = routes.get('/dsh-nvidia/test')
   assert.ok(testRoute !== undefined)
   const testRes = fakeRes()
   await testRoute(postJson({ model: 'gpt-oss:120b' }), testRes)
@@ -190,8 +190,8 @@ test('credential writes stay inside the plugin namespace', async () => {
   const usage = { read: async () => undefined, usage: async () => undefined, clear: () => {} }
   applyRoutes(ctx, web, { config: () => config, adapter, pool, usage, verifyHost: async () => true } as never)
 
-  const configRoute = routes.get('/dsh-ollama/config')
-  const keyRoute = routes.get('/dsh-ollama/key')
+  const configRoute = routes.get('/dsh-nvidia/config')
+  const keyRoute = routes.get('/dsh-nvidia/key')
   assert.ok(configRoute !== undefined && keyRoute !== undefined)
 
   const foreignConfig = fakeRes()
@@ -268,8 +268,8 @@ test('write routes require a same-origin source and a loopback socket', async ()
       req.headers?.cookie === 'dsh-auth-abc=v1.token',
   } as never)
 
-  const write = routes.get('/dsh-ollama/config')
-  const read = routes.get('/dsh-ollama/state')
+  const write = routes.get('/dsh-nvidia/config')
+  const read = routes.get('/dsh-nvidia/state')
   assert.ok(write !== undefined && read !== undefined)
 
   const cases: Array<{ name: string; req: Record<string, unknown>; status: number }> = [
@@ -444,8 +444,8 @@ test('sensitive reads require an authenticated host session', async () => {
     usage,
     verifyHost: async (req: { headers: { cookie?: string } }) => req.headers.cookie === 'dsh-auth-abc=valid',
   } as never)
-  const state = routes.get('/dsh-ollama/state')
-  const health = routes.get('/dsh-ollama/health')
+  const state = routes.get('/dsh-nvidia/state')
+  const health = routes.get('/dsh-nvidia/health')
   assert.ok(state !== undefined && health !== undefined)
 
   const anonymous = fakeRes()
@@ -510,7 +510,7 @@ test('default Desktop verifier accepts only a host-verified cookie', async () =>
     }
     const usage = { read: async () => undefined, usage: async () => undefined, clear: () => {} }
     applyRoutes(ctx, web, { config: () => config, adapter, pool, usage } as never)
-    const write = routes.get('/dsh-ollama/config')
+    const write = routes.get('/dsh-nvidia/config')
     assert.ok(write !== undefined)
 
     const request = (cookie: string) => ({
@@ -562,7 +562,7 @@ test('cooldowns reset route invokes clearCooldowns and returns 200', async () =>
     verifyHost: async () => true,
   })
 
-  const reset = routes.get('/dsh-ollama/cooldowns/reset')
+  const reset = routes.get('/dsh-nvidia/cooldowns/reset')
   assert.ok(reset !== undefined)
 
   const res = fakeRes()
@@ -597,7 +597,7 @@ test('config route rejects endpoint URLs that can leak the key (#136)', async ()
     verifyHost: async () => true,
   })
 
-  const config = routes.get('/dsh-ollama/config')
+  const config = routes.get('/dsh-nvidia/config')
   assert.ok(config !== undefined)
 
   for (const apiBase of [

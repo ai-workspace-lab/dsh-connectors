@@ -710,7 +710,7 @@ export const GENERATED_MODELS: Record<string, NvidiaCloudModelMeta> = {
   "gpt-oss:120b": {
     "id": "gpt-oss:120b",
     "name": "gpt-oss:120b",
-    "transport": "openai-chat",
+    "transport": "native",
     "contextWindow": 131072,
     "maxTokens": 32768,
     "input": [
@@ -730,7 +730,7 @@ export const GENERATED_MODELS: Record<string, NvidiaCloudModelMeta> = {
   "gpt-oss": {
     "id": "gpt-oss:120b",
     "name": "gpt-oss:120b",
-    "transport": "openai-chat",
+    "transport": "native",
     "contextWindow": 131072,
     "maxTokens": 32768,
     "input": [

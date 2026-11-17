@@ -341,7 +341,7 @@ export function effectiveModel(id: string, config: ResolvedConfig): EffectiveMod
   return {
     ...meta,
     name: manual?.name ?? meta.name,
-    transport: config.modelTransports[id] ?? config.transport,
+    transport: config.modelTransports[id] ?? meta.transport ?? config.transport,
     contextWindow: config.contextWindowOverrides[id]
       ?? override?.contextWindow
       ?? manual?.contextWindow

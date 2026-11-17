@@ -173,7 +173,7 @@ export function apply(ctx: Context, config: Config): void {
     })
     webCtx.effect(() => registerPluginUpdater(webCtx, {
       endpoint: '/dsh-nvidia/update',
-      packageName: '@goodandready/dsh-nvidia-cloud-provider',
+      packageName: '@ai-workspace-lab/dsh-nvidia-cloud-provider',
       manifestUrl: new URL('../package.json', import.meta.url),
     }), 'dsh-nvidia-cloud-provider: plugin updater')
   })

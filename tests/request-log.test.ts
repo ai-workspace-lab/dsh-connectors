@@ -162,7 +162,7 @@ test('compacts atomically and leaves no temporary file (#142)', async () => {
     assert.equal(lines.length, 10)
     for (const line of lines) JSON.parse(line)
 
-    const entries = await readdir(join(home, 'storages', 'dsh-ollama'))
+    const entries = await readdir(join(home, 'storages', 'dsh-nvidia'))
     assert.deepEqual(entries.filter((name) => name.endsWith('.tmp')), [])
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME

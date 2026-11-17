@@ -15,7 +15,7 @@ test('TUI section exposes the Ollama fields', () => {
     planLabel: () => '',
   })
   assert.equal(section.ns, 'llm-ollama-cloud')
-  assert.equal(section.title, 'Ollama Cloud')
+  assert.equal(section.title, 'NVIDIA NIM')
   const paths = section.fields.map((field) => field.path.join('.'))
   assert.ok(paths.includes('apiKey'))
   assert.ok(paths.includes('apiBase'))

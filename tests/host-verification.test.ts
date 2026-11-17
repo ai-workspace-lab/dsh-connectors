@@ -39,7 +39,7 @@ test('default host verifier rejects a public 404 probe', async () => {
       pool: { resolveAll: async () => [], resolve: async () => { throw new Error('missing') } },
       usage: { read: async () => undefined, usage: async () => undefined, clear: () => {} },
     } as never)
-    const state = routes.get('/dsh-ollama/state')
+    const state = routes.get('/dsh-nvidia/state')
     assert.ok(state !== undefined)
     const result = response()
     await state({
@@ -150,7 +150,7 @@ test('health refuses a rebinding Host that only starts with 127 (#135)', async (
     usage: { read: async () => undefined, usage: async () => undefined, clear: () => {} },
   } as never)
 
-  const health = routes.get('/dsh-ollama/health')
+  const health = routes.get('/dsh-nvidia/health')
   assert.ok(health !== undefined)
 
   const rebinding = response()

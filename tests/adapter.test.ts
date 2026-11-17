@@ -195,7 +195,11 @@ test('OpenAI-compatible stream parses reasoning and usage', async () => {
     headers: { 'content-type': 'text/event-stream' },
   })) as typeof fetch
   const adapter = new OllamaCloudAdapter({
-    config: () => resolveConfig({ apiKey: 'k', transport: 'openai-chat' }),
+    config: () => resolveConfig({
+      apiKey: 'k',
+      transport: 'openai-chat',
+      modelTransports: { 'gpt-oss:120b': 'openai-chat' },
+    }),
     resolveKey: async () => ({ key: 'k', source: 'test' }),
     fetchImpl,
     ...paths(),

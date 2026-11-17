@@ -23,10 +23,10 @@ test.after(async () => {
 
 const config = resolveConfig({ apiKey: 'test-key' })
 
-test('resolved config carries Ollama defaults', () => {
+test('resolved config carries NVIDIA NIM defaults', () => {
   assert.equal(config.apiBase, DEFAULT_API_BASE)
   assert.equal(config.openAiBase, DEFAULT_OPENAI_BASE)
-  assert.equal(config.transport, 'native')
+  assert.equal(config.transport, 'openai-chat')
   assert.equal(config.apiKeyEnv, DEFAULT_API_KEY_ENV)
   assert.equal(config.maxOutputTokens, undefined)
   assert.equal(config.autoRefresh, true)
