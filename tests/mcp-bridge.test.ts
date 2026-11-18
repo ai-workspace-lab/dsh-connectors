@@ -73,10 +73,13 @@ test('discoverRemoteMcpTools handles JSON and SSE responses and registers tools 
   assert.equal(discovery.sessionId, 'sess-42')
   assert.equal(discovery.tools.length, 2)
 
-  const registered = new Map<string, { execute: (input: Record<string, unknown>) => Promise<unknown> }>()
+  const registered = new Map<string, any>()
   const { summaries, dispose } = registerMcpToolsOnRegistry({
     registry: {
-      register: (def) => {
+      register: (def: any) => {
+        if (!def.output || typeof def.output.render !== 'function') {
+          throw new TypeError(`tool "${def.name}" must declare output { schema, render, presentationMeta? }`)
+        }
         registered.set(def.name, def)
         return () => registered.delete(def.name)
       },
@@ -93,8 +96,15 @@ test('discoverRemoteMcpTools handles JSON and SSE responses and registers tools 
   assert.equal(qualifyConnectorToolName('github', 'list_repos'), 'mcp__github__list_repos')
   assert.ok(registered.has('mcp__github__list_repos'))
 
-  const callResult = await registered.get('mcp__github__list_repos')!.execute({})
+  const repoTool = registered.get('mcp__github__list_repos')!
+  assert.ok(repoTool.output)
+  assert.deepEqual(repoTool.output.schema, {})
+
+  const callResult = await repoTool.execute({})
   assert.deepEqual(callResult, { content: [{ type: 'text', text: 'ok' }] })
+
+  const renderedBlocks = repoTool.output.render({}, callResult)
+  assert.deepEqual(renderedBlocks, [{ type: 'text', text: 'ok' }])
 
   dispose()
   assert.equal(registered.size, 0)

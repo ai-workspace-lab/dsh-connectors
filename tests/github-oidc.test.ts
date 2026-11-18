@@ -68,10 +68,13 @@ test('GitHub OIDC / Device Flow / SSO and built-in GitHub MCP tools work end-to-
   assert.equal(imported.source, 'gh-cli')
 
   // 3. Built-in GitHub MCP tools
-  const registered = new Map<string, { execute: (input: Record<string, unknown>) => Promise<unknown> }>()
+  const registered = new Map<string, any>()
   const { summaries, dispose } = registerBuiltinGitHubTools({
     registry: {
-      register: (def) => {
+      register: (def: any) => {
+        if (!def.output || typeof def.output.render !== 'function') {
+          throw new TypeError(`tool "${def.name}" must declare output { schema, render, presentationMeta? }`)
+        }
         registered.set(def.name, def)
         return () => registered.delete(def.name)
       },
@@ -85,8 +88,16 @@ test('GitHub OIDC / Device Flow / SSO and built-in GitHub MCP tools work end-to-
   assert.ok(registered.has('mcp__github__get_authenticated_user'))
   assert.ok(registered.has('mcp__github__search_repositories'))
 
-  const user = await registered.get('mcp__github__get_authenticated_user')!.execute({}) as { login: string }
+  const userTool = registered.get('mcp__github__get_authenticated_user')!
+  assert.ok(userTool.output)
+  assert.deepEqual(userTool.output.schema, {})
+
+  const user = await userTool.execute({}) as { login: string }
   assert.equal(user.login, 'haitaopanhq')
+
+  const rendered = userTool.output.render({}, user)
+  assert.equal(rendered[0].type, 'text')
+  assert.ok(rendered[0].text.includes('haitaopanhq'))
 
   dispose()
   assert.equal(registered.size, 0)

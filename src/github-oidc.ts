@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 
 import { saveOAuthGrant } from './credentials.ts'
-import type { ToolRegistryLike } from './mcp-bridge.ts'
+import { createDefaultToolOutput, type ToolRegistryLike } from './mcp-bridge.ts'
 import { safeErrorMessage } from './sanitize.ts'
 import type { McpToolSummary, ResolvedConnectorAuth } from './types.ts'
 
@@ -342,6 +342,7 @@ export function registerBuiltinGitHubTools(options: {
           name: qualifiedName,
           description: spec.description,
           parameters: spec.parameters,
+          output: createDefaultToolOutput(),
           execute: async (input) => {
             try {
               return await spec.execute(input)
@@ -351,8 +352,9 @@ export function registerBuiltinGitHubTools(options: {
           },
         })
         disposers.push(dispose)
-      } catch {
-        // Ignore duplicate tool name if remote MCP already registered it
+      } catch (err) {
+        // Ignore duplicate tool name if remote MCP already registered it, or log registration error
+        console.warn(`[dsh-connectors] Failed to register built-in GitHub tool "${qualifiedName}":`, safeErrorMessage(err))
       }
     }
   }

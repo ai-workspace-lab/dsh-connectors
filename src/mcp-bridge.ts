@@ -14,13 +14,63 @@ export interface McpDiscoveryResult {
   readonly tools: readonly RemoteMcpTool[]
 }
 
+export interface ToolOutputBlock {
+  type: string
+  [key: string]: unknown
+}
+
+export interface ToolOutputSpec {
+  schema: Record<string, unknown>
+  render: (args: Record<string, unknown>, value: unknown) => ToolOutputBlock[]
+  presentationMeta?: ((args: Record<string, unknown>, value: unknown) => Record<string, unknown>) | undefined
+}
+
+export interface ToolDefinitionLike {
+  name: string
+  description?: string | undefined
+  parameters?: Record<string, unknown> | undefined
+  output: ToolOutputSpec
+  execute: (input: Record<string, unknown>, execution?: unknown) => Promise<unknown>
+  timeoutMs?: number | undefined
+}
+
 export interface ToolRegistryLike {
-  register(definition: {
-    name: string
-    description: string
-    parameters?: Record<string, unknown>
-    execute: (input: Record<string, unknown>) => Promise<unknown>
-  }): () => void
+  register(definition: ToolDefinitionLike): () => void
+}
+
+/**
+ * Creates standard output schema & renderer matching DeepSeek Harness tools.register requirements:
+ * output { schema, render, presentationMeta? }
+ */
+export function createDefaultToolOutput(): ToolOutputSpec {
+  return {
+    schema: {},
+    render: (_args, value) => {
+      if (
+        value &&
+        typeof value === 'object' &&
+        Array.isArray((value as { content?: unknown[] }).content) &&
+        (value as { content: unknown[] }).content.every(
+          (b) => b && typeof b === 'object' && typeof (b as { type?: unknown }).type === 'string',
+        )
+      ) {
+        return (value as { content: ToolOutputBlock[] }).content
+      }
+      let text: string
+      if (typeof value === 'string') {
+        text = value
+      } else if (value === null || value === undefined) {
+        text = ''
+      } else {
+        try {
+          text = JSON.stringify(value, null, 2)
+        } catch {
+          text = String(value)
+        }
+      }
+      return [{ type: 'text', text }]
+    },
+  }
 }
 
 function parseJsonRpcFromSse(text: string): Record<string, unknown> | undefined {
@@ -288,23 +338,30 @@ export function registerMcpToolsOnRegistry(options: {
     })
 
     if (options.registry && typeof options.registry.register === 'function') {
-      const dispose = options.registry.register({
-        name: qualifiedName,
-        description: tool.description ?? `Remote MCP tool ${tool.name} (${options.connectorId})`,
-        parameters: tool.inputSchema ?? { type: 'object', properties: {} },
-        execute: async (input) => {
-          const headers = await options.resolveHeaders()
-          return callRemoteMcpTool({
-            url: options.mcpUrl,
-            toolName: tool.name,
-            args: input,
-            headers,
-            sessionId: options.sessionId,
-            fetchFn: options.fetchFn,
-          })
-        },
-      })
-      disposers.push(dispose)
+      try {
+        const dispose = options.registry.register({
+          name: qualifiedName,
+          description: tool.description ?? `Remote MCP tool ${tool.name} (${options.connectorId})`,
+          parameters: tool.inputSchema ?? { type: 'object', properties: {} },
+          output: createDefaultToolOutput(),
+          execute: async (input) => {
+            const headers = await options.resolveHeaders()
+            return callRemoteMcpTool({
+              url: options.mcpUrl,
+              toolName: tool.name,
+              args: input,
+              headers,
+              sessionId: options.sessionId,
+              fetchFn: options.fetchFn,
+            })
+          },
+        })
+        disposers.push(dispose)
+      } catch (err) {
+        // Prevent individual remote tool registration failures (e.g. invalid schemas or name collisions)
+        // from breaking the entire connector sync/test flow.
+        console.warn(`[dsh-connectors] Failed to register tool "${qualifiedName}":`, safeErrorMessage(err))
+      }
     }
   }
 
