@@ -33,6 +33,7 @@ export {
 export {
   buildAuthHeaders,
   callRemoteMcpTool,
+  createDefaultToolOutput,
   discoverRemoteMcpTools,
   qualifyConnectorToolName,
   registerMcpToolsOnRegistry,

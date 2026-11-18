@@ -40,7 +40,10 @@ function createHarness() {
       },
     },
     tools: {
-      register(def: { name: string }) {
+      register(def: { name: string; output?: { schema?: unknown; render?: unknown } }) {
+        if (!def.output || typeof def.output.render !== 'function') {
+          throw new TypeError(`tool "${def.name}" must declare output { schema, render, presentationMeta? }`)
+        }
         registeredTools.set(def.name, def)
         return () => registeredTools.delete(def.name)
       },
