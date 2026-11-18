@@ -13,6 +13,7 @@ import {
   type ConnectorCategory,
   type ConnectorView,
 } from './api.ts'
+import { ConnectorIcon } from './icons.tsx'
 import type { ConnectorsLocaleKey } from './locales.ts'
 
 export interface ConnectorsSettingsPageProps {
@@ -29,69 +30,22 @@ const CATEGORIES: ReadonlyArray<{ id: 'all' | ConnectorCategory; key: Connectors
   { id: 'custom', key: 'catCustom' },
 ]
 
-function statusTone(state: ConnectorView['runtime']['state']): 'ok' | 'warn' | 'err' | undefined {
-  switch (state) {
-    case 'connected':
-      return 'ok'
-    case 'needs_auth':
-    case 'connecting':
-      return 'warn'
-    case 'error':
-      return 'err'
-    default:
-      return undefined
-  }
-}
-
-function statusLabelKey(state: ConnectorView['runtime']['state']): ConnectorsLocaleKey {
-  switch (state) {
-    case 'connected':
-      return 'statusConnected'
-    case 'needs_auth':
-      return 'statusNeedsAuth'
-    case 'connecting':
-      return 'statusConnecting'
-    case 'error':
-      return 'statusError'
-    default:
-      return 'statusDisconnected'
-  }
-}
-
-function categoryLabelKey(cat: ConnectorCategory): ConnectorsLocaleKey {
-  switch (cat) {
-    case 'code':
-      return 'catCode'
-    case 'cloud':
-      return 'catCloud'
-    case 'communication':
-      return 'catCommunication'
-    case 'productivity':
-      return 'catProductivity'
-    case 'security':
-      return 'catSecurity'
-    case 'custom':
-      return 'catCustom'
-  }
-}
-
 export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
   const [connectors, setConnectors] = useState<ConnectorView[]>([])
   const [category, setCategory] = useState<'all' | ConnectorCategory>('all')
   const [search, setSearch] = useState('')
+  const [onlyConnected, setOnlyConnected] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ tone: 'info' | 'err'; text: string } | null>(null)
 
-  // Draft fields for selected connector
   const [draftAuthMethod, setDraftAuthMethod] = useState<AuthMethod>('token')
   const [draftFields, setDraftFields] = useState<Record<string, string>>({})
   const [draftToken, setDraftToken] = useState('')
   const [draftAwsSecret, setDraftAwsSecret] = useState('')
   const [draftOAuthSecret, setDraftOAuthSecret] = useState('')
 
-  // Draft fields for custom MCP modal
   const [customId, setCustomId] = useState('')
   const [customName, setCustomName] = useState('')
   const [customMcpUrl, setCustomMcpUrl] = useState('')
@@ -131,6 +85,11 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
     [connectors, selectedId],
   )
 
+  const connectedList = useMemo(
+    () => connectors.filter((c) => c.credential.configured || c.runtime.state === 'connected'),
+    [connectors],
+  )
+
   const openEditor = (view: ConnectorView) => {
     setSelectedId(view.definition.id)
     setDraftAuthMethod(view.settings.authMethod ?? view.definition.authMethods[0] ?? 'token')
@@ -154,6 +113,7 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return connectors.filter((item) => {
+      if (onlyConnected && !item.credential.configured && item.runtime.state !== 'connected') return false
       if (category !== 'all' && item.definition.category !== category) return false
       if (!q) return true
       return (
@@ -163,25 +123,9 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
         || item.definition.shortDescZh.includes(q)
       )
     })
-  }, [connectors, category, search])
+  }, [connectors, category, search, onlyConnected])
 
   const isZh = t('nav') === '连接器'
-
-  const handleToggleEnabled = async (view: ConnectorView) => {
-    setBusyId(view.definition.id)
-    setBanner(null)
-    try {
-      const next = await updateConnectorConfig({
-        id: view.definition.id,
-        enabled: !view.settings.enabled,
-      })
-      setConnectors(next)
-    } catch (err) {
-      setBanner({ tone: 'err', text: err instanceof Error ? err.message : String(err) })
-    } finally {
-      setBusyId(null)
-    }
-  }
 
   const handleTest = async (id: string) => {
     setBusyId(id)
@@ -333,23 +277,67 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
   return (
     <div className="dsh-conn-page">
       <div className="dsh-conn-header">
-        <div>
-          <h2 className="dsh-conn-title">{t('title')}</h2>
-          <p className="dsh-conn-subtitle">{t('subtitle')}</p>
+        <h2 className="dsh-conn-title">{t('title')}</h2>
+        <div className="dsh-conn-header-right">
+          {connectedList.length > 0 && (
+            <button
+              type="button"
+              className="dsh-conn-connected-summary"
+              onClick={() => setOnlyConnected((v) => !v)}
+            >
+              <span className="dsh-conn-mini-stack">
+                {connectedList.slice(0, 4).map((c) => (
+                  <ConnectorIcon key={c.definition.id} id={c.definition.id} name={c.definition.name} size={18} />
+                ))}
+              </span>
+              <span>
+                {isZh ? `已连接 ${connectedList.length} 个` : `${connectedList.length} connected`} ›
+              </span>
+            </button>
+          )}
         </div>
-        <div className="dsh-conn-actions">
-          <button type="button" className="dsh-conn-btn" onClick={() => void reload()}>
-            {t('refresh')}
-          </button>
+      </div>
+
+      <div className="dsh-conn-search-row">
+        <div className="dsh-conn-search-wrap">
+          <span className="dsh-conn-search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            className="dsh-conn-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+          />
+        </div>
+        <button
+          type="button"
+          className="dsh-conn-pill-btn"
+          onClick={() => setShowCustomModal((v) => !v)}
+        >
+          {t('addCustom')}
+        </button>
+      </div>
+
+      <div className="dsh-conn-pills">
+        {CATEGORIES.map((cat) => (
           <button
+            key={cat.id}
             type="button"
-            className="dsh-conn-btn"
-            data-variant="primary"
-            onClick={() => setShowCustomModal((v) => !v)}
+            className="dsh-conn-pill"
+            data-active={!onlyConnected && category === cat.id ? 'true' : undefined}
+            onClick={() => {
+              setOnlyConnected(false)
+              setCategory(cat.id)
+            }}
           >
-            {t('addCustom')}
+            {t(cat.key)}
           </button>
-        </div>
+        ))}
       </div>
 
       {banner && (
@@ -463,35 +451,13 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
         </div>
       )}
 
-      <div className="dsh-conn-toolbar">
-        <div className="dsh-conn-pills">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              className="dsh-conn-pill"
-              data-active={category === cat.id ? 'true' : undefined}
-              onClick={() => setCategory(cat.id)}
-            >
-              {t(cat.key)}
-            </button>
-          ))}
-        </div>
-        <input
-          className="dsh-conn-search"
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('searchPlaceholder')}
-        />
-      </div>
-
       {selected && (
         <div className="dsh-conn-drawer">
           <div className="dsh-conn-drawer-head">
-            <div>
-              <strong>{selected.definition.name}</strong>{' '}
-              <span className="dsh-conn-badge">
+            <div className="dsh-conn-actions">
+              <ConnectorIcon id={selected.definition.id} name={selected.definition.name} size={28} />
+              <strong>{selected.definition.name}</strong>
+              <span className="dsh-conn-badge" data-tone={selected.credential.configured ? 'ok' : undefined}>
                 {selected.credential.configured
                   ? (selected.credential.kind === 'env-ref' ? t('credEnv') : t('credStored'))
                   : t('credNone')}
@@ -638,7 +604,7 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
           <div className="dsh-conn-tools">
             <strong>{t('toolsHeading')} ({selected.runtime.tools.length})</strong>
             {selected.runtime.tools.length === 0 ? (
-              <span className="dsh-conn-card-desc">{t('noTools')}</span>
+              <span className="dsh-conn-row-desc">{t('noTools')}</span>
             ) : (
               selected.runtime.tools.map((tool) => (
                 <div key={tool.qualifiedName} className="dsh-conn-tool-item">
@@ -652,74 +618,45 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
       )}
 
       {filtered.length === 0 ? (
-        <p className="dsh-conn-card-desc">{t('emptyList')}</p>
+        <p className="dsh-conn-row-desc">{t('emptyList')}</p>
       ) : (
         <div className="dsh-conn-grid">
           {filtered.map((item) => {
             const isSelected = item.definition.id === selectedId
-            const busy = busyId === item.definition.id
+            const isConnected = item.credential.configured || item.runtime.state === 'connected'
+            const desc = isZh ? item.definition.shortDescZh : item.definition.shortDescEn
             return (
               <div
                 key={item.definition.id}
-                className="dsh-conn-card"
+                className="dsh-conn-row"
                 data-selected={isSelected ? 'true' : undefined}
               >
-                <div className="dsh-conn-card-main">
-                  <div className="dsh-conn-card-info">
-                    <div className="dsh-conn-card-top">
-                      <span className="dsh-conn-card-name">{item.definition.name}</span>
-                      <span className="dsh-conn-badge" data-tone={statusTone(item.runtime.state)}>
-                        {t(statusLabelKey(item.runtime.state))}
-                      </span>
-                      <span className="dsh-conn-badge">{t(categoryLabelKey(item.definition.category))}</span>
-                      <span className="dsh-conn-badge">
-                        {item.definition.source === 'custom'
-                          ? t('sourceCustom')
-                          : item.definition.source === 'package'
-                            ? t('sourcePackage')
-                            : t('sourceBuiltin')}
-                      </span>
-                      {item.credential.configured && (
-                        <span className="dsh-conn-badge" data-tone="ok">
-                          {item.credential.kind === 'env-ref' ? t('credEnv') : t('credStored')}
-                        </span>
-                      )}
-                      {item.runtime.tools.length > 0 && (
-                        <span className="dsh-conn-badge">{item.runtime.tools.length} MCP</span>
+                <div className="dsh-conn-row-left">
+                  <ConnectorIcon id={item.definition.id} name={item.definition.name} />
+                  <div className="dsh-conn-row-text">
+                    <div className="dsh-conn-row-title">
+                      <span>{item.definition.name}</span>
+                      {(isConnected || item.runtime.state === 'error') && (
+                        <span
+                          className="dsh-conn-dot"
+                          data-tone={item.runtime.state === 'error' ? 'err' : undefined}
+                        />
                       )}
                     </div>
-                    <p className="dsh-conn-card-desc">
-                      {isZh ? item.definition.shortDescZh : item.definition.shortDescEn}
-                    </p>
-                  </div>
-
-                  <div className="dsh-conn-card-foot">
-                    <button
-                      type="button"
-                      className="dsh-conn-btn"
-                      onClick={() => openEditor(item)}
-                    >
-                      {t('configure')}
-                    </button>
-                    <button
-                      type="button"
-                      className="dsh-conn-btn"
-                      disabled={busy}
-                      onClick={() => void handleTest(item.definition.id)}
-                    >
-                      {busy ? t('testing') : t('testConnection')}
-                    </button>
-                    <button
-                      type="button"
-                      className="dsh-conn-btn"
-                      data-variant={item.settings.enabled ? undefined : 'primary'}
-                      disabled={busy}
-                      onClick={() => void handleToggleEnabled(item)}
-                    >
-                      {item.settings.enabled ? t('disable') : t('enable')}
-                    </button>
+                    <div className="dsh-conn-row-desc" title={desc}>
+                      {desc}
+                    </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  className="dsh-conn-pill-btn"
+                  data-connected={isConnected ? 'true' : undefined}
+                  onClick={() => openEditor(item)}
+                >
+                  {isConnected ? (isZh ? '已连接' : 'Connected') : (isZh ? '连接' : 'Connect')}
+                </button>
               </div>
             )
           })}
