@@ -664,39 +664,36 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
                 className="dsh-conn-card"
                 data-selected={isSelected ? 'true' : undefined}
               >
-                <div>
-                  <div className="dsh-conn-card-top">
-                    <span className="dsh-conn-card-name">{item.definition.name}</span>
-                    <span className="dsh-conn-badge" data-tone={statusTone(item.runtime.state)}>
-                      {t(statusLabelKey(item.runtime.state))}
-                    </span>
+                <div className="dsh-conn-card-main">
+                  <div className="dsh-conn-card-info">
+                    <div className="dsh-conn-card-top">
+                      <span className="dsh-conn-card-name">{item.definition.name}</span>
+                      <span className="dsh-conn-badge" data-tone={statusTone(item.runtime.state)}>
+                        {t(statusLabelKey(item.runtime.state))}
+                      </span>
+                      <span className="dsh-conn-badge">{t(categoryLabelKey(item.definition.category))}</span>
+                      <span className="dsh-conn-badge">
+                        {item.definition.source === 'custom'
+                          ? t('sourceCustom')
+                          : item.definition.source === 'package'
+                            ? t('sourcePackage')
+                            : t('sourceBuiltin')}
+                      </span>
+                      {item.credential.configured && (
+                        <span className="dsh-conn-badge" data-tone="ok">
+                          {item.credential.kind === 'env-ref' ? t('credEnv') : t('credStored')}
+                        </span>
+                      )}
+                      {item.runtime.tools.length > 0 && (
+                        <span className="dsh-conn-badge">{item.runtime.tools.length} MCP</span>
+                      )}
+                    </div>
+                    <p className="dsh-conn-card-desc">
+                      {isZh ? item.definition.shortDescZh : item.definition.shortDescEn}
+                    </p>
                   </div>
-                  <p className="dsh-conn-card-desc">
-                    {isZh ? item.definition.shortDescZh : item.definition.shortDescEn}
-                  </p>
-                </div>
 
-                <div className="dsh-conn-badges">
-                  <span className="dsh-conn-badge">{t(categoryLabelKey(item.definition.category))}</span>
-                  <span className="dsh-conn-badge">
-                    {item.definition.source === 'custom'
-                      ? t('sourceCustom')
-                      : item.definition.source === 'package'
-                        ? t('sourcePackage')
-                        : t('sourceBuiltin')}
-                  </span>
-                  {item.credential.configured && (
-                    <span className="dsh-conn-badge" data-tone="ok">
-                      {item.credential.kind === 'env-ref' ? t('credEnv') : t('credStored')}
-                    </span>
-                  )}
-                  {item.runtime.tools.length > 0 && (
-                    <span className="dsh-conn-badge">{item.runtime.tools.length} MCP</span>
-                  )}
-                </div>
-
-                <div className="dsh-conn-card-foot">
-                  <div className="dsh-conn-actions">
+                  <div className="dsh-conn-card-foot">
                     <button
                       type="button"
                       className="dsh-conn-btn"
@@ -712,16 +709,16 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
                     >
                       {busy ? t('testing') : t('testConnection')}
                     </button>
+                    <button
+                      type="button"
+                      className="dsh-conn-btn"
+                      data-variant={item.settings.enabled ? undefined : 'primary'}
+                      disabled={busy}
+                      onClick={() => void handleToggleEnabled(item)}
+                    >
+                      {item.settings.enabled ? t('disable') : t('enable')}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="dsh-conn-btn"
-                    data-variant={item.settings.enabled ? undefined : 'primary'}
-                    disabled={busy}
-                    onClick={() => void handleToggleEnabled(item)}
-                  >
-                    {item.settings.enabled ? t('disable') : t('enable')}
-                  </button>
                 </div>
               </div>
             )

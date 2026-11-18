@@ -25,7 +25,16 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   })
-  const data = await res.json() as T & { error?: string }
+  const text = await res.text()
+  if (!text.trim()) {
+    throw new Error(`Empty response from server (HTTP ${res.status})`)
+  }
+  let data: T & { error?: string }
+  try {
+    data = JSON.parse(text) as T & { error?: string }
+  } catch {
+    throw new Error(`Invalid JSON response (HTTP ${res.status})`)
+  }
   if (!res.ok) {
     throw new Error(data.error || `Request failed (${res.status})`)
   }

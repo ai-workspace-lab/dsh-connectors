@@ -1,11 +1,34 @@
 export const CSS_ID = 'dsh-connectors-styles'
 
 export const CSS = `
+:where(.dsh-conn-page) {
+  --conn-border: var(--dsw-alias-border-l3, rgba(128, 128, 128, 0.22));
+  --conn-fill: var(--dsw-alias-settings-card-fill, rgba(128, 128, 128, 0.05));
+  --conn-fill-soft: var(--dsw-alias-bg-layer-2, rgba(128, 128, 128, 0.08));
+  --conn-fill-hover: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.12));
+  --conn-text: var(--dsw-alias-label-primary, inherit);
+  --conn-text-secondary: var(--dsw-alias-label-secondary, inherit);
+  --conn-accent: var(--dsw-alias-state-business-primary, #2563eb);
+  --conn-accent-soft: color-mix(in srgb, var(--conn-accent) 14%, transparent);
+  --conn-accent-border: color-mix(in srgb, var(--conn-accent) 50%, transparent);
+  --conn-success: var(--dsw-alias-state-success-primary, #059669);
+  --conn-success-soft: color-mix(in srgb, var(--conn-success) 12%, transparent);
+  --conn-success-border: color-mix(in srgb, var(--conn-success) 45%, transparent);
+  --conn-warning: var(--dsw-alias-state-warning-primary, #d97706);
+  --conn-warning-soft: color-mix(in srgb, var(--conn-warning) 12%, transparent);
+  --conn-warning-border: color-mix(in srgb, var(--conn-warning) 45%, transparent);
+  --conn-danger: var(--dsw-alias-state-error-primary, #dc2626);
+  --conn-danger-soft: color-mix(in srgb, var(--conn-danger) 12%, transparent);
+  --conn-danger-border: color-mix(in srgb, var(--conn-danger) 40%, transparent);
+  --conn-focus: var(--dsw-focus-ring-color, var(--conn-accent));
+}
+
 .dsh-conn-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  color: var(--text-primary, #e5e7eb);
+  gap: 14px;
+  padding: 4px 2px 24px;
+  color: var(--conn-text);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -21,19 +44,21 @@ export const CSS = `
 .dsh-conn-title {
   margin: 0;
   font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary, #f3f4f6);
+  font-weight: 650;
+  color: var(--conn-text);
 }
 
 .dsh-conn-subtitle {
   margin: 4px 0 0;
   font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
+  color: var(--conn-text-secondary);
+  opacity: 0.8;
   max-width: 680px;
 }
 
 .dsh-conn-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -53,72 +78,101 @@ export const CSS = `
 }
 
 .dsh-conn-pill {
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
-  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
-  color: var(--text-secondary, #9ca3af);
+  font: inherit;
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill);
+  color: var(--conn-text-secondary);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 4px 11px;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+.dsh-conn-pill:hover {
+  background: var(--conn-fill-hover);
+}
+
 .dsh-conn-pill[data-active="true"] {
-  background: var(--accent-soft, rgba(59, 130, 246, 0.16));
-  color: var(--accent, #60a5fa);
-  border-color: var(--accent, #3b82f6);
+  background: var(--conn-accent-soft);
+  color: var(--conn-accent);
+  border-color: var(--conn-accent-border);
+  font-weight: 550;
 }
 
 .dsh-conn-search {
+  font: inherit;
   min-width: 220px;
   flex: 1 1 220px;
-  max-width: 320px;
+  max-width: 340px;
   padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  background: var(--bg-input, rgba(0, 0, 0, 0.2));
-  color: var(--text-primary, #f3f4f6);
+  border-radius: 7px;
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill-soft);
+  color: var(--conn-text);
   font-size: 12px;
 }
 
+.dsh-conn-search:focus {
+  outline: 2px solid var(--conn-focus);
+  outline-offset: 1px;
+}
+
+/* Vertical list layout */
 .dsh-conn-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .dsh-conn-card {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  background: var(--bg-surface, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill);
 }
 
 .dsh-conn-card[data-selected="true"] {
-  border-color: var(--accent, #3b82f6);
+  border-color: var(--conn-accent);
+}
+
+.dsh-conn-card-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dsh-conn-card-info {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .dsh-conn-card-top {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
 .dsh-conn-card-name {
-  font-weight: 600;
+  font-weight: 650;
   font-size: 14px;
-  color: var(--text-primary, #f9fafb);
+  color: var(--conn-text);
 }
 
 .dsh-conn-card-desc {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
+  color: var(--conn-text-secondary);
+  opacity: 0.8;
 }
 
 .dsh-conn-badges {
@@ -126,81 +180,89 @@ export const CSS = `
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  margin-top: 2px;
 }
 
 .dsh-conn-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
-  color: var(--text-secondary, #9ca3af);
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill-soft);
+  color: var(--conn-text-secondary);
 }
 
 .dsh-conn-badge[data-tone="ok"] {
-  color: #34d399;
-  border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(16, 185, 129, 0.12);
+  color: var(--conn-success);
+  border-color: var(--conn-success-border);
+  background: var(--conn-success-soft);
 }
 
 .dsh-conn-badge[data-tone="warn"] {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(245, 158, 11, 0.12);
+  color: var(--conn-warning);
+  border-color: var(--conn-warning-border);
+  background: var(--conn-warning-soft);
 }
 
 .dsh-conn-badge[data-tone="err"] {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(239, 68, 68, 0.12);
+  color: var(--conn-danger);
+  border-color: var(--conn-danger-border);
+  background: var(--conn-danger-soft);
 }
 
 .dsh-conn-card-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
+  flex-shrink: 0;
 }
 
 .dsh-conn-btn {
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
-  color: var(--text-primary, #f3f4f6);
-  border-radius: 6px;
-  padding: 5px 10px;
+  font: inherit;
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill-soft);
+  color: var(--conn-text);
+  border-radius: 7px;
+  padding: 5px 11px;
   font-size: 12px;
   cursor: pointer;
 }
 
+.dsh-conn-btn:hover:not(:disabled) {
+  background: var(--conn-fill-hover);
+}
+
 .dsh-conn-btn[data-variant="primary"] {
-  background: var(--accent, #2563eb);
-  border-color: var(--accent, #2563eb);
-  color: #ffffff;
+  background: var(--conn-accent-soft);
+  border-color: var(--conn-accent-border);
+  color: var(--conn-accent);
+  font-weight: 550;
 }
 
 .dsh-conn-btn[data-variant="danger"] {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.35);
+  color: var(--conn-danger);
+  border-color: var(--conn-danger-border);
+  background: var(--conn-danger-soft);
 }
 
 .dsh-conn-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .dsh-conn-drawer {
-  padding: 16px;
+  padding: 14px 16px;
   border-radius: 10px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .dsh-conn-drawer-head {
@@ -223,33 +285,41 @@ export const CSS = `
 }
 
 .dsh-conn-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary, #9ca3af);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--conn-text-secondary);
 }
 
 .dsh-conn-input,
 .dsh-conn-select {
+  font: inherit;
   padding: 6px 9px;
-  border-radius: 6px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
-  background: var(--bg-input, rgba(0, 0, 0, 0.25));
-  color: var(--text-primary, #f3f4f6);
+  border-radius: 7px;
+  border: 1px solid var(--conn-border);
+  background: var(--conn-fill-soft);
+  color: var(--conn-text);
   font-size: 12px;
+}
+
+.dsh-conn-input:focus,
+.dsh-conn-select:focus {
+  outline: 2px solid var(--conn-focus);
+  outline-offset: 1px;
 }
 
 .dsh-conn-banner {
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: 7px;
   font-size: 12px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
-  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid var(--conn-accent-border);
+  background: var(--conn-accent-soft);
+  color: var(--conn-text);
 }
 
 .dsh-conn-banner[data-tone="err"] {
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
+  border-color: var(--conn-danger-border);
+  background: var(--conn-danger-soft);
+  color: var(--conn-danger);
 }
 
 .dsh-conn-tools {
@@ -257,14 +327,15 @@ export const CSS = `
   flex-direction: column;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--conn-border);
 }
 
 .dsh-conn-tool-item {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--conn-fill-soft);
+  border: 1px solid var(--conn-border);
 }
 `

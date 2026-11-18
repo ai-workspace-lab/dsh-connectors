@@ -40,6 +40,25 @@ export { applyCommands } from './commands.ts'
 export { applyConnectorsTuiSettings, buildConnectorsTuiSection } from './tui-settings.ts'
 export type * from './types.ts'
 
+function onServiceAvailable(
+  ctx: Context,
+  serviceName: string,
+  callback: (serviceCtx: Context) => () => void,
+): void {
+  const injectFn = (ctx as unknown as { inject?: (deps: string[], cb: (c: Context) => void) => void }).inject
+  if (typeof injectFn === 'function') {
+    injectFn.call(ctx, [serviceName], (serviceCtx: Context) => {
+      const dispose = callback(serviceCtx)
+      serviceCtx.effect(() => dispose, `dsh-connectors: ${serviceName}`)
+    })
+    return
+  }
+  if ((ctx as unknown as { get?: (n: string) => unknown }).get?.(serviceName)) {
+    const dispose = callback(ctx)
+    ctx.effect(() => dispose, `dsh-connectors: ${serviceName}`)
+  }
+}
+
 export function apply(ctx: Context, config: Partial<Config> = {}): void {
   const logger = ctx.logger('connectors')
   const resolved = resolveConfig(config)
@@ -49,17 +68,13 @@ export function apply(ctx: Context, config: Partial<Config> = {}): void {
     provide.call(ctx, 'connectors', service)
   }
 
-  ctx.effect(() => {
-    const disposeRoutes = applyRoutes(ctx, { service })
-    const disposeCommands = applyCommands(ctx, service)
-    const disposeTui = applyConnectorsTuiSettings(ctx)
-    return () => {
-      disposeTui()
-      disposeCommands()
-      disposeRoutes()
-      service.disposeAll()
-    }
-  }, 'dsh-connectors: lifecycle')
+  onServiceAvailable(ctx, 'webServer', (webCtx) => applyRoutes(webCtx, { service }))
+  onServiceAvailable(ctx, 'commands', (cmdCtx) => applyCommands(cmdCtx, service))
+  onServiceAvailable(ctx, 'tui.settings.sections', (tuiCtx) => applyConnectorsTuiSettings(tuiCtx))
+
+  ctx.effect(() => () => {
+    service.disposeAll()
+  }, 'dsh-connectors: dispose-tools')
 
   ctx.effect(() => {
     const timer = setTimeout(() => {

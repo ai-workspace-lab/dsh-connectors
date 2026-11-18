@@ -73,7 +73,8 @@ export function applyRoutes(ctx: Context, deps: RouteDeps): () => void {
   const verifyDesktop = deps.verifyDesktop ?? createDesktopVerifier(ctx)
   const verifyHost = deps.verifyHost ?? verifyDesktop
   const testGuard = createRouteGuard(500)
-  const webServer = (ctx as unknown as { get?: (n: string) => unknown }).get?.('webServer') as WebServer | undefined
+  const webServer = (ctx as unknown as { webServer?: WebServer; get?: (n: string) => unknown }).webServer
+    ?? ((ctx as unknown as { get?: (n: string) => unknown }).get?.('webServer') as WebServer | undefined)
   if (!webServer || typeof webServer.register !== 'function') {
     return () => {}
   }
