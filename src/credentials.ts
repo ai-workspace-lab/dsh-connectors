@@ -1,14 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
-import {
-  credentialKey,
-  credentialRef,
-  isCredentialKeySegment,
-  isCredentialRefName,
-  type ApiKeyRecord,
-  type CredentialKey,
-  type CredentialProvider,
-  type CredentialRecord,
-  type GrantRecord,
+import type {
+  ApiKeyRecord,
+  CredentialKey,
+  CredentialProvider,
+  CredentialRecord,
+  CredentialRef,
+  GrantRecord,
 } from '@deepseek-ai/dsh-credentials'
 
 import type {
@@ -19,6 +16,32 @@ import type {
 
 export const CREDENTIAL_SCOPE = 'connectors'
 const REFRESH_SKEW_MS = 60_000
+const REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const KEY_SEGMENT_PATTERN = /^[a-z][a-z0-9-]*$/
+
+function isCredentialRefName(value: string): boolean {
+  return REF_PATTERN.test(value)
+}
+
+function credentialRef(value: string): CredentialRef {
+  if (!isCredentialRefName(value)) {
+    throw new TypeError(`credential ref "${value}" must match ${String(REF_PATTERN)}`)
+  }
+  return value as CredentialRef
+}
+
+function isCredentialKeySegment(value: string): boolean {
+  return KEY_SEGMENT_PATTERN.test(value)
+}
+
+function credentialKey(scope: string, id: string): CredentialKey {
+  for (const segment of [scope, id]) {
+    if (!KEY_SEGMENT_PATTERN.test(segment)) {
+      throw new TypeError(`credential key segment "${segment}" must match ${String(KEY_SEGMENT_PATTERN)}`)
+    }
+  }
+  return `${scope}/${id}` as CredentialKey
+}
 
 export function connectorCredentialKey(connectorId: string): CredentialKey {
   const normalized = connectorId.toLowerCase().replace(/[^a-z0-9-]/g, '-')

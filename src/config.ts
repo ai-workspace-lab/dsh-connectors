@@ -18,6 +18,7 @@ export interface Config {
 const InstanceSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   authMethod: z.union([
+    z.const('oidc'),
     z.const('oauth'),
     z.const('token'),
     z.const('header'),
@@ -39,6 +40,7 @@ const CustomConnectorSchema = z.object({
   name: z.string().required(),
   mcpUrl: z.string().required(),
   authMethod: z.union([
+    z.const('oidc'),
     z.const('oauth'),
     z.const('token'),
     z.const('header'),
@@ -77,7 +79,7 @@ export function resolveConfig(raw?: Partial<Config>): ResolvedConnectorsConfig {
 }
 
 export function cleanAuthMethod(value: unknown): AuthMethod | undefined {
-  if (value === 'oauth' || value === 'token' || value === 'header' || value === 'none') {
+  if (value === 'oidc' || value === 'oauth' || value === 'token' || value === 'header' || value === 'none') {
     return value
   }
   return undefined

@@ -337,6 +337,83 @@ export function applyRoutes(ctx: Context, deps: RouteDeps): () => void {
         json(res, 405, { error: 'Method Not Allowed' })
       },
     },
+    {
+      kind: 'exact',
+      path: '/plugins/connectors/github/device/start',
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { error: 'Method Not Allowed' })
+          return
+        }
+        if (!(await verifyDesktop(req))) {
+          json(res, 403, { error: 'Forbidden' })
+          return
+        }
+        try {
+          const body = await readJsonBody(req)
+          const session = await deps.service.startGitHubDevice({
+            clientId: typeof body.clientId === 'string' ? body.clientId : undefined,
+            scopes: typeof body.scopes === 'string' ? body.scopes : undefined,
+          })
+          json(res, 200, session)
+        } catch (err) {
+          json(res, 400, { error: safeErrorMessage(err) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/plugins/connectors/github/device/poll',
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { error: 'Method Not Allowed' })
+          return
+        }
+        if (!(await verifyDesktop(req))) {
+          json(res, 403, { error: 'Forbidden' })
+          return
+        }
+        try {
+          const body = await readJsonBody(req)
+          const deviceCode = typeof body.deviceCode === 'string' ? body.deviceCode.trim() : ''
+          if (!deviceCode) {
+            json(res, 400, { error: 'deviceCode is required' })
+            return
+          }
+          const outcome = await deps.service.pollGitHubDevice({
+            deviceCode,
+            clientId: typeof body.clientId === 'string' ? body.clientId : undefined,
+          })
+          const connectors = await deps.service.listViews()
+          json(res, 200, { outcome, connectors })
+        } catch (err) {
+          json(res, 400, { error: safeErrorMessage(err) })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/plugins/connectors/github/sso',
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { error: 'Method Not Allowed' })
+          return
+        }
+        if (!(await verifyDesktop(req))) {
+          json(res, 403, { error: 'Forbidden' })
+          return
+        }
+        try {
+          const body = await readJsonBody(req)
+          const audience = typeof body.audience === 'string' ? body.audience : undefined
+          const imported = await deps.service.importGitHubSso(audience)
+          const connectors = await deps.service.listViews()
+          json(res, 200, { ok: true, imported, connectors })
+        } catch (err) {
+          json(res, 400, { error: safeErrorMessage(err) })
+        }
+      },
+    },
   ]
 
   const disposers = routes.map((r) => webServer.register(r))

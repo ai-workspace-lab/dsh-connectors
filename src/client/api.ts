@@ -1,3 +1,4 @@
+import { BUILTIN_CONNECTORS } from '../catalog.ts'
 import type {
   AuthMethod,
   ConnectorView,
@@ -15,6 +16,15 @@ export type {
   CustomMcpConnectorSpec,
   McpToolSummary,
 } from '../types.ts'
+
+function fallbackBuiltinViews(): ConnectorView[] {
+  return BUILTIN_CONNECTORS.map((definition) => ({
+    definition,
+    settings: { enabled: false },
+    credential: { configured: false, writable: true },
+    runtime: { id: definition.id, state: 'disconnected', tools: [] },
+  }))
+}
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -42,8 +52,12 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchConnectorsState(): Promise<ConnectorView[]> {
-  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/state')
-  return data.connectors
+  try {
+    const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/state')
+    return data.connectors
+  } catch {
+    return fallbackBuiltinViews()
+  }
 }
 
 export async function updateConnectorConfig(payload: {
@@ -99,6 +113,45 @@ export async function startConnectorOAuth(payload: {
       ...payload,
       origin: typeof window !== 'undefined' ? window.location.origin : undefined,
     }),
+  })
+}
+
+export async function startGitHubDeviceOAuth(payload: {
+  clientId?: string | undefined
+  scopes?: string | undefined
+} = {}): Promise<{
+  deviceCode: string
+  userCode: string
+  verificationUri: string
+  expiresIn: number
+  interval: number
+}> {
+  return requestJson('/plugins/connectors/github/device/start', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function pollGitHubDeviceOAuth(payload: {
+  deviceCode: string
+  clientId?: string | undefined
+}): Promise<{
+  outcome: { status: 'pending' | 'authorized' | 'expired'; accountLabel?: string; message?: string }
+  connectors: ConnectorView[]
+}> {
+  return requestJson('/plugins/connectors/github/device/poll', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function importGitHubLocalSso(): Promise<{
+  imported: { accountLabel: string; source: string }
+  connectors: ConnectorView[]
+}> {
+  return requestJson('/plugins/connectors/github/sso', {
+    method: 'POST',
+    body: JSON.stringify({}),
   })
 }
 

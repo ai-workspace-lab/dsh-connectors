@@ -26,6 +26,13 @@ export {
   saveTokenCredential,
 } from './credentials.ts'
 export {
+  DEFAULT_GITHUB_CLIENT_ID,
+  importLocalGitHubOidcOrCliAuth,
+  pollGitHubDeviceFlow,
+  registerBuiltinGitHubTools,
+  startGitHubDeviceFlow,
+} from './github-oidc.ts'
+export {
   buildAuthHeaders,
   callRemoteMcpTool,
   discoverRemoteMcpTools,

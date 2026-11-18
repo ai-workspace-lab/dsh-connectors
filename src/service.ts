@@ -9,6 +9,15 @@ import {
   saveTokenCredential,
 } from './credentials.ts'
 import {
+   DEFAULT_GITHUB_CLIENT_ID,
+  importLocalGitHubOidcOrCliAuth,
+  pollGitHubDeviceFlow,
+  registerBuiltinGitHubTools,
+  startGitHubDeviceFlow,
+  type GitHubDeviceFlowSession,
+  type GitHubDevicePollOutcome,
+} from './github-oidc.ts'
+import {
   buildAuthHeaders,
   registerMcpToolsOnRegistry,
   type ToolRegistryLike,
@@ -230,6 +239,39 @@ export class ConnectorsService {
     await this.updateInstanceSettings(id, { enabled: true })
   }
 
+  async startGitHubDevice(options: { clientId?: string | undefined; scopes?: string | undefined } = {}): Promise<GitHubDeviceFlowSession> {
+    const settings = this.getInstanceSettings('github')
+    return startGitHubDeviceFlow({
+      clientId: options.clientId || settings.oauthClientId || DEFAULT_GITHUB_CLIENT_ID,
+      scopes: options.scopes || settings.oauthScopes,
+      fetchFn: this.fetchFn,
+    })
+  }
+
+  async pollGitHubDevice(options: { deviceCode: string; clientId?: string | undefined }): Promise<GitHubDevicePollOutcome> {
+    const settings = this.getInstanceSettings('github')
+    const outcome = await pollGitHubDeviceFlow(this.ctx, {
+      deviceCode: options.deviceCode,
+      clientId: options.clientId || settings.oauthClientId || DEFAULT_GITHUB_CLIENT_ID,
+      fetchFn: this.fetchFn,
+    })
+    if (outcome.status === 'authorized') {
+      await this.updateInstanceSettings('github', { enabled: true, authMethod: 'oidc' })
+      await this.connectAndSync('github').catch(() => undefined)
+    }
+    return outcome
+  }
+
+  async importGitHubSso(audience?: string): Promise<{ accountLabel: string; source: string }> {
+    const imported = await importLocalGitHubOidcOrCliAuth(this.ctx, {
+      audience,
+      fetchFn: this.fetchFn,
+    })
+    await this.updateInstanceSettings('github', { enabled: true, authMethod: 'oidc' })
+    await this.connectAndSync('github').catch(() => undefined)
+    return imported
+  }
+
   async clearCredential(id: string): Promise<void> {
     await deleteConnectorCredential(this.ctx, id)
     this.disposeTools(id)
@@ -272,8 +314,10 @@ export class ConnectorsService {
       description: t.description,
     }))
 
+    const registry = (this.ctx as unknown as { get?: (n: string) => unknown }).get?.('tools') as ToolRegistryLike | undefined
+    const disposers: Array<() => void> = []
+
     if (mcpUrl && result.mcpTools.length > 0 && settings.enabled) {
-      const registry = (this.ctx as unknown as { get?: (n: string) => unknown }).get?.('tools') as ToolRegistryLike | undefined
       const authHeader = settings.headerName || def.defaultAuthHeader || 'Authorization'
       const authPrefix = def.defaultAuthPrefix ?? 'Bearer'
       const registered = registerMcpToolsOnRegistry({
@@ -289,7 +333,23 @@ export class ConnectorsService {
         },
       })
       summaries = registered.summaries
-      this.toolDisposers.set(id, registered.dispose)
+      disposers.push(registered.dispose)
+    } else if (id === 'github' && result.state === 'connected') {
+      const baseUrl = normalizeHttpUrl(settings.baseUrl || def.defaultBaseUrl) ?? 'https://api.github.com'
+      const builtinGh = registerBuiltinGitHubTools({
+        registry: settings.enabled ? registry : undefined,
+        baseUrl,
+        fetchFn: this.fetchFn,
+        resolveAuth: () => resolveConnectorAuth(this.ctx, id, fallbackEnvRef, this.fetchFn),
+      })
+      summaries = builtinGh.summaries
+      disposers.push(builtinGh.dispose)
+    }
+
+    if (disposers.length > 0) {
+      this.toolDisposers.set(id, () => {
+        for (const d of disposers) d()
+      })
     }
 
     this.runtime.set(id, {

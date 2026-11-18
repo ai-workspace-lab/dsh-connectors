@@ -16,7 +16,7 @@ export type BuiltinConnectorId =
 
 export type ConnectorCategory = 'code' | 'communication' | 'productivity' | 'security' | 'cloud' | 'custom'
 
-export type AuthMethod = 'oauth' | 'token' | 'header' | 'none'
+export type AuthMethod = 'oidc' | 'oauth' | 'token' | 'header' | 'none'
 
 export type ConnectorSourceKind = 'builtin' | 'custom' | 'package'
 

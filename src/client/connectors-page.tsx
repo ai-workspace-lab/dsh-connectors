@@ -4,8 +4,11 @@ import {
   clearConnectorToken,
   deleteCustomConnector,
   fetchConnectorsState,
+  importGitHubLocalSso,
+  pollGitHubDeviceOAuth,
   saveConnectorToken,
   startConnectorOAuth,
+  startGitHubDeviceOAuth,
   testConnectorConnection,
   updateConnectorConfig,
   upsertCustomConnector,
@@ -45,6 +48,12 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
   const [draftToken, setDraftToken] = useState('')
   const [draftAwsSecret, setDraftAwsSecret] = useState('')
   const [draftOAuthSecret, setDraftOAuthSecret] = useState('')
+  const [ghDeviceSession, setGhDeviceSession] = useState<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    interval: number
+  } | null>(null)
 
   const [customId, setCustomId] = useState('')
   const [customName, setCustomName] = useState('')
@@ -107,7 +116,66 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
     setDraftToken('')
     setDraftAwsSecret('')
     setDraftOAuthSecret('')
+    setGhDeviceSession(null)
     setBanner(null)
+  }
+
+  useEffect(() => {
+    if (!ghDeviceSession) return
+    const timer = setInterval(() => {
+      void pollGitHubDeviceOAuth({
+        deviceCode: ghDeviceSession.deviceCode,
+        clientId: draftFields.oauthClientId || undefined,
+      })
+        .then((res) => {
+          if (res.outcome.status === 'authorized') {
+            setConnectors(res.connectors)
+            setGhDeviceSession(null)
+            setBanner({ tone: 'info', text: res.outcome.message ?? t('savedBanner') })
+          } else if (res.outcome.status === 'expired') {
+            setGhDeviceSession(null)
+            setBanner({ tone: 'err', text: res.outcome.message ?? 'Device code expired' })
+          }
+        })
+        .catch(() => undefined)
+    }, Math.max(3, ghDeviceSession.interval) * 1000)
+    return () => clearInterval(timer)
+  }, [ghDeviceSession, draftFields.oauthClientId, t])
+
+  const handleGitHubSso = async () => {
+    setBusyId('github')
+    setBanner(null)
+    try {
+      const res = await importGitHubLocalSso()
+      setConnectors(res.connectors)
+      setBanner({
+        tone: 'info',
+        text: `GitHub Connected: ${res.imported.accountLabel} (${res.imported.source})`,
+      })
+    } catch (err) {
+      setBanner({ tone: 'err', text: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleGitHubDeviceStart = async () => {
+    setBusyId('github')
+    setBanner(null)
+    try {
+      const session = await startGitHubDeviceOAuth({
+        clientId: draftFields.oauthClientId || undefined,
+        scopes: draftFields.oauthScopes || undefined,
+      })
+      setGhDeviceSession(session)
+      if (typeof window !== 'undefined') {
+        window.open(session.verificationUri, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err) {
+      setBanner({ tone: 'err', text: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -478,7 +546,15 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
               >
                 {selected.definition.authMethods.map((m) => (
                   <option key={m} value={m}>
-                    {m === 'oauth' ? t('authOAuth') : m === 'token' ? t('authToken') : m === 'header' ? t('authHeader') : t('authNone')}
+                    {m === 'oidc'
+                      ? t('authOidc')
+                      : m === 'oauth'
+                        ? t('authOAuth')
+                        : m === 'token'
+                          ? t('authToken')
+                          : m === 'header'
+                            ? t('authHeader')
+                            : t('authNone')}
                   </option>
                 ))}
               </select>
@@ -497,7 +573,7 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
             ))}
           </div>
 
-          {draftAuthMethod !== 'none' && draftAuthMethod !== 'oauth' && (
+          {draftAuthMethod !== 'none' && draftAuthMethod !== 'oauth' && draftAuthMethod !== 'oidc' && (
             <div className="dsh-conn-form-grid">
               <label className="dsh-conn-field">
                 <span className="dsh-conn-label">{t('tokenInputLabel')}</span>
@@ -538,6 +614,13 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
             </div>
           )}
 
+          {draftAuthMethod === 'oidc' && selected.definition.id === 'github' && ghDeviceSession && (
+            <div className="dsh-conn-banner">
+              <span>{t('ghDeviceCodeLabel')} </span>
+              <strong style={{ fontSize: 15, letterSpacing: '1.5px' }}>{ghDeviceSession.userCode}</strong>
+            </div>
+          )}
+
           <div className="dsh-conn-actions">
             <button
               type="button"
@@ -547,7 +630,28 @@ export function ConnectorsSettingsPage({ t }: ConnectorsSettingsPageProps) {
             >
               {t('saveSettings')}
             </button>
-            {draftAuthMethod !== 'none' && draftAuthMethod !== 'oauth' && (
+            {draftAuthMethod === 'oidc' && selected.definition.id === 'github' && (
+              <>
+                <button
+                  type="button"
+                  className="dsh-conn-btn"
+                  data-variant="primary"
+                  disabled={busyId === 'github'}
+                  onClick={() => void handleGitHubSso()}
+                >
+                  {t('ghSsoConnect')}
+                </button>
+                <button
+                  type="button"
+                  className="dsh-conn-btn"
+                  disabled={busyId === 'github'}
+                  onClick={() => void handleGitHubDeviceStart()}
+                >
+                  {t('ghDeviceConnect')}
+                </button>
+              </>
+            )}
+            {draftAuthMethod !== 'none' && draftAuthMethod !== 'oauth' && draftAuthMethod !== 'oidc' && (
               <button
                 type="button"
                 className="dsh-conn-btn"
