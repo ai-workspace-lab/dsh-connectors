@@ -10,9 +10,7 @@ import { ConnectorsService } from './service.ts'
 import { applyConnectorsTuiSettings } from './tui-settings.ts'
 
 export const name = '@ai-workspace-lab/dsh-connectors'
-export const inject = {
-  optional: ['credentials', 'webServer', 'settings', 'commands', 'tools'],
-}
+export const inject: string[] = []
 
 export { Config, NS, resolveConfig }
 export { BUILTIN_CONNECTORS, findBuiltinConnector } from './catalog.ts'
