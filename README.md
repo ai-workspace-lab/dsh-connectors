@@ -1,63 +1,31 @@
-# 📦 @ai-workspace-lab/dsh-nvidia-cloud-provider
+# @ai-workspace-lab/dsh-connectors
 
-<div align="center">
+[中文说明](README.zh.md)
 
-<h3>NVIDIA NIM Cloud Provider for DeepSeek Harness</h3>
-
-<p>
-  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider"><img src="https://img.shields.io/badge/GitHub-ai--workspace--lab%2Fdsh--nvidia--cloud--provider-76b900.svg?style=for-the-badge&logo=github" alt="GitHub Repo"></a>
-  <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/Powered_by-NVIDIA_NIM-76b900.svg?style=for-the-badge&logo=nvidia" alt="NVIDIA NIM"></a>
-  <a href="https://github.com/ai-workspace-lab/dsh-nvidia-cloud-provider/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
-</p>
-
-</div>
-
----
-
-NVIDIA NIM cloud provider plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (`dsh`).
-
-It registers the **`nvidia-nim`** provider route, connecting DeepSeek Harness directly to [build.nvidia.com](https://build.nvidia.com) through an OpenAI-compatible gateway (`https://integrate.api.nvidia.com/v1`).
+Connectors plugin for **DeepSeek Harness (dsh)**. Adds a dedicated **Connectors** page in Settings to connect remote MCP servers and cloud/DevOps services via **OAuth 2.0 (PKCE)** or **API tokens**, with all credentials stored securely in the **DSH Credential Store** (`@deepseek-ai/dsh-credentials`).
 
 ## Features
 
-- **Coexists Independently**: Coexists seamlessly with Ollama Cloud and other providers without route, storage, or UI collisions.
-- **Auto Model Discovery**: Automatically fetches and categorizes available NVIDIA NIM models from `integrate.api.nvidia.com/v1/models`.
-- **OpenAI-Compatible Streaming**: Full support for tool calling, reasoning/thinking streams, and multi-modal image inputs.
-- **Smart Rotation & Cooldown**: Multi-account pooling with automatic cooldown on 429 rate limits and sticky session support.
-- **Zero-Restart Credential Management**: Update or rotate your `NVIDIA_API_KEY` dynamically in settings.
+- **Settings → Connectors Page**: Built-in `settings.section` (`id: 'connectors'`) with category filters, search, OAuth 2.0 & API token configuration, live connection testing, and discovered MCP tool inspection.
+- **First-Batch Built-in Connectors (10)**:
+  - **Code Hosting**: `github` (GitHub), `gitea` (Gitea), `gitlab` (GitLab)
+  - **Communication & Workspace**: `gmail` (Gmail), `google-workspaces` (Google Workspaces)
+  - **Security**: `vault-server` (HashiCorp Vault)
+  - **Cloud Infrastructure**: `cloudflare` (Cloudflare), `aws-lightsail` (AWS Lightsail), `gcp` (Google Cloud Platform), `linode-vps` (Linode VPS)
+- **Custom Remote MCP Servers**: Add any Streamable HTTP / SSE remote MCP server address with Bearer token, custom header, OAuth 2.0, or unauthenticated access.
+- **Plugin Connector Packages**: Other DSH plugins can register connector packs via `ctx.connectors.registerPackage(pkg)`.
+- **DSH Credential Store**: Tokens and OAuth grants (`accessToken` + `refreshToken` with automatic refresh) are stored under `connectors/<id>` in `ctx.credentials`, never written in plaintext to settings files or returned to the UI.
+- **CLI / TUI**: Includes `/connectors` and `/connector test <id>` slash commands plus TUI settings registration.
 
-## Quick Start
-
-### 1. Install
-
-```bash
-dsh plugin add @ai-workspace-lab/dsh-nvidia-cloud-provider
-```
-
-Or install from GitHub directly:
+## Installation
 
 ```bash
-dsh plugin add github:ai-workspace-lab/dsh-nvidia-cloud-provider
+npm install @ai-workspace-lab/dsh-connectors
 ```
 
-### 2. Configure
+## Development
 
-Add to your `cordis.patch.yml`:
-
-```yaml
-- id: llm-nvidia-nim
-  name: "@ai-workspace-lab/dsh-nvidia-cloud-provider"
-  config:
-    apiKeyEnv: NVIDIA_API_KEY # or paste directly in Settings → NVIDIA NIM
+```bash
+npm run check
+node scripts/smoke-load.mjs
 ```
-
-### 3. Usage
-
-1. Open DeepSeek Harness **Settings → NVIDIA NIM**.
-2. Paste your API key from [build.nvidia.com](https://build.nvidia.com) (starts with `nvapi-`).
-3. Click **Save key** and **Test connection**.
-4. Select any NIM model (e.g., `deepseek-ai/deepseek-v4.1-flash`, `mistralai/mistral-large-4-1t-a52b`) in the chat model picker.
-
-## License
-
-[MIT](LICENSE)

@@ -1,146 +1,263 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import { LlmError } from '@deepseek-ai/dsh-llm'
+import {
+  credentialKey,
+  credentialRef,
+  isCredentialKeySegment,
+  isCredentialRefName,
+  type ApiKeyRecord,
+  type CredentialKey,
+  type CredentialProvider,
+  type CredentialRecord,
+  type GrantRecord,
+} from '@deepseek-ai/dsh-credentials'
 
-import type { ResolvedConfig } from './config.ts'
-import { bestEffortFailed } from './best-effort.ts'
+import type {
+  ConnectorCredentialStatus,
+  OAuthGrantPayload,
+  ResolvedConnectorAuth,
+} from './types.ts'
 
-export interface ResolvedKey {
-  readonly key: string
-  readonly source: string
-  /** Slot label (`default` or the configured account name). */
-  readonly label?: string
+export const CREDENTIAL_SCOPE = 'connectors'
+const REFRESH_SKEW_MS = 60_000
+
+export function connectorCredentialKey(connectorId: string): CredentialKey {
+  const normalized = connectorId.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+  const safeId = isCredentialKeySegment(normalized) ? normalized : `c-${normalized}`
+  return credentialKey(CREDENTIAL_SCOPE, safeId)
 }
 
-export type KeyResolver = (provider: string) => Promise<ResolvedKey>
-
-export interface KeyPool {
-  resolve(provider: string): Promise<ResolvedKey>
-  resolveAll(provider: string): Promise<readonly ResolvedKey[]>
+function getCredentialsService(ctx: Context): CredentialProvider | undefined {
+  return (ctx as unknown as { get?: (name: string) => unknown }).get?.('credentials') as CredentialProvider | undefined
 }
 
-interface CredentialsService {
-  resolve(ref: ReturnType<typeof credentialRef>): Promise<{ value: string; source?: string } | undefined>
+function isOAuthGrantPayload(value: unknown): value is OAuthGrantPayload {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { accessToken?: unknown }).accessToken === 'string'
+    && (value as { accessToken: string }).accessToken.length > 0
 }
 
-interface Slot {
-  readonly label: string
-  readonly literal?: string
-  readonly refName?: string
+export async function saveTokenCredential(
+  ctx: Context,
+  connectorId: string,
+  token: string,
+  extraEnv?: Readonly<Record<string, string>>,
+): Promise<void> {
+  const trimmed = token.trim()
+  if (!trimmed) {
+    throw new Error('Token must not be empty')
+  }
+  const credentials = getCredentialsService(ctx)
+  if (!credentials) {
+    throw new Error('DSH credentials service is not available')
+  }
+  const key = connectorCredentialKey(connectorId)
+  const cleanExtra: Record<string, string> = {}
+  if (extraEnv) {
+    for (const [k, v] of Object.entries(extraEnv)) {
+      if (v.trim() !== '') cleanExtra[k] = v.trim()
+    }
+  }
+  const record: ApiKeyRecord = {
+    kind: 'api-key',
+    key: trimmed,
+    ...(Object.keys(cleanExtra).length > 0 ? { env: cleanExtra } : {}),
+  }
+  await credentials.modifyRecord(key, async () => record)
 }
 
-async function resolveRef(ctx: Context, refName: string): Promise<ResolvedKey | undefined> {
-  const credentials = ctx.get('credentials') as CredentialsService | undefined
-  if (credentials !== undefined) {
-    try {
-      const hit = await credentials.resolve(credentialRef(refName))
-      if (hit !== undefined && hit.value.trim() !== '') {
-        return { key: hit.value.trim(), source: hit.source ?? refName }
+export async function saveOAuthGrant(
+  ctx: Context,
+  connectorId: string,
+  grant: OAuthGrantPayload,
+): Promise<void> {
+  if (!grant.accessToken.trim()) {
+    throw new Error('OAuth accessToken must not be empty')
+  }
+  const credentials = getCredentialsService(ctx)
+  if (!credentials) {
+    throw new Error('DSH credentials service is not available')
+  }
+  const key = connectorCredentialKey(connectorId)
+  const record: GrantRecord = {
+    kind: 'grant',
+    payload: grant,
+  }
+  await credentials.modifyRecord(key, async () => record)
+}
+
+export async function deleteConnectorCredential(ctx: Context, connectorId: string): Promise<void> {
+  const credentials = getCredentialsService(ctx)
+  if (!credentials) return
+  const key = connectorCredentialKey(connectorId)
+  await credentials.deleteRecord(key)
+}
+
+export async function describeConnectorCredential(
+  ctx: Context,
+  connectorId: string,
+  fallbackEnvRef?: string,
+): Promise<ConnectorCredentialStatus> {
+  const credentials = getCredentialsService(ctx)
+  if (!credentials) {
+    return { configured: false, writable: false }
+  }
+  const key = connectorCredentialKey(connectorId)
+  const info = await credentials.describeRecord(key)
+  if (info.configured) {
+    const record = await credentials.readRecord(key)
+    if (record?.kind === 'grant' && isOAuthGrantPayload(record.payload)) {
+      return {
+        configured: true,
+        kind: 'grant',
+        source: 'dsh-credentials',
+        writable: info.writable,
+        expiresAt: record.payload.expiresAt,
+        hasRefreshToken: Boolean(record.payload.refreshToken),
       }
-    } catch (error) {
-      // An invalid reference name is a configuration problem, not a storage miss.
-      bestEffortFailed('credential reference is invalid', error)
     }
-  }
-  const ambient = launchEnvironmentOf(ctx).get(refName)
-  if (ambient !== undefined && ambient.value.trim() !== '') {
-    return { key: ambient.value.trim(), source: ambient.source }
-  }
-  return undefined
-}
-
-function slotsOf(config: ResolvedConfig): Slot[] {
-  const slots: Slot[] = [{
-    label: 'default',
-    ...(config.apiKey === undefined ? {} : { literal: config.apiKey }),
-    refName: config.apiKeyEnv,
-  }]
-  for (const [index, account] of config.accounts.entries()) {
-    const label = typeof account.label === 'string' && account.label.trim() !== ''
-      ? account.label.trim()
-      : `account-${index + 2}`
-    const literal = typeof account.apiKey === 'string' && account.apiKey.trim() !== ''
-      ? account.apiKey.trim()
-      : undefined
-    const refName = typeof account.apiKeyEnv === 'string' && account.apiKeyEnv.trim() !== ''
-      ? account.apiKeyEnv.trim()
-      : undefined
-    if (literal === undefined && refName === undefined) continue
-    slots.push({
-      label,
-      ...(literal === undefined ? {} : { literal }),
-      ...(refName === undefined ? {} : { refName }),
-    })
-  }
-  return slots
-}
-
-async function resolveSlot(ctx: Context, slot: Slot): Promise<ResolvedKey | undefined> {
-  if (slot.literal !== undefined) {
-    return { key: slot.literal, source: `${slot.label}:config.apiKey`, label: slot.label }
-  }
-  if (slot.refName !== undefined) {
-    const resolved = await resolveRef(ctx, slot.refName)
-    if (resolved !== undefined) return { ...resolved, label: slot.label }
-  }
-  return undefined
-}
-
-/**
- * Resolve every configured account for one request. The default account comes
- * first unless `activeAccount` pins another slot by label or credential name.
- * Keys are deduplicated; a slot without a resolvable value is skipped.
- */
-export function createKeyPool(ctx: Context, config: () => ResolvedConfig): KeyPool {
-  const all = async (): Promise<readonly ResolvedKey[]> => {
-    const current = config()
-    const pinned = current.activeAccount.trim()
-    const slots = slotsOf(current)
-    if (pinned !== '') {
-      const index = slots.findIndex((slot) => slot.label === pinned || slot.refName === pinned)
-      if (index > 0) {
-        const [slot] = slots.splice(index, 1)
-        if (slot !== undefined) slots.unshift(slot)
+    if (record?.kind === 'api-key') {
+      return {
+        configured: Boolean(record.key),
+        kind: 'api-key',
+        source: 'dsh-credentials',
+        writable: info.writable,
+        hasExtraFields: Boolean(record.env && Object.keys(record.env).length > 0),
       }
     }
-
-    const resolved: ResolvedKey[] = []
-    const seen = new Set<string>()
-    for (const slot of slots) {
-      const key = await resolveSlot(ctx, slot)
-      if (key === undefined || seen.has(key.key)) continue
-      seen.add(key.key)
-      resolved.push(key)
+    return {
+      configured: true,
+      kind: info.kind === 'grant' ? 'grant' : 'api-key',
+      source: 'dsh-credentials',
+      writable: info.writable,
     }
-    return resolved
+  }
+
+  if (fallbackEnvRef && isCredentialRefName(fallbackEnvRef)) {
+    const refInfo = await credentials.describe(credentialRef(fallbackEnvRef))
+    if (refInfo.configured) {
+      return {
+        configured: true,
+        kind: 'env-ref',
+        source: refInfo.source ?? 'env',
+        writable: refInfo.writable,
+      }
+    }
   }
 
   return {
-    async resolveAll() {
-      const keys = await all()
-      if (keys.length === 0) throw missingKey(config())
-      return keys
-    },
-    async resolve() {
-      const keys = await all()
-      const first = keys[0]
-      if (first === undefined) throw missingKey(config())
-      return first
-    },
+    configured: false,
+    writable: info.writable,
   }
 }
 
-function missingKey(config: ResolvedConfig): LlmError {
-  return new LlmError(
-    `llm-ollama-cloud: no API key. Store ${config.apiKeyEnv} through the credentials`
-    + ' service, export it in the launching environment, or set config.apiKey in the'
-    + ' composition. Create a key at https://ollama.com/settings/keys.',
-    'MISSING_CREDENTIAL',
-  )
+async function refreshOAuthGrantIfNeeded(
+  credentials: CredentialProvider,
+  key: CredentialKey,
+  current: GrantRecord,
+  fetchFn: typeof fetch,
+): Promise<OAuthGrantPayload | undefined> {
+  if (!isOAuthGrantPayload(current.payload)) return undefined
+  const payload = current.payload
+  const expired = payload.expiresAt !== undefined && Date.now() + REFRESH_SKEW_MS >= payload.expiresAt
+  if (!expired || !payload.refreshToken || !payload.tokenUrl) {
+    return payload
+  }
+
+  let refreshedPayload: OAuthGrantPayload | undefined
+  await credentials.modifyRecord(key, async (latest): Promise<CredentialRecord | undefined> => {
+    if (latest?.kind !== 'grant' || !isOAuthGrantPayload(latest.payload)) return undefined
+    const latestPayload = latest.payload
+    if (latestPayload.expiresAt !== undefined && Date.now() + REFRESH_SKEW_MS < latestPayload.expiresAt) {
+      refreshedPayload = latestPayload
+      return undefined
+    }
+    if (!latestPayload.refreshToken || !latestPayload.tokenUrl) {
+      refreshedPayload = latestPayload
+      return undefined
+    }
+
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: latestPayload.refreshToken,
+    })
+    if (latestPayload.clientId) body.set('client_id', latestPayload.clientId)
+
+    const response = await fetchFn(latestPayload.tokenUrl, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    })
+    if (!response.ok) {
+      refreshedPayload = latestPayload
+      return undefined
+    }
+    const json = await response.json() as Record<string, unknown>
+    const nextToken = typeof json.access_token === 'string' ? json.access_token : undefined
+    if (!nextToken) {
+      refreshedPayload = latestPayload
+      return undefined
+    }
+    const expiresIn = typeof json.expires_in === 'number' ? json.expires_in : undefined
+    refreshedPayload = {
+      ...latestPayload,
+      accessToken: nextToken,
+      refreshToken: typeof json.refresh_token === 'string' ? json.refresh_token : latestPayload.refreshToken,
+      tokenType: typeof json.token_type === 'string' ? json.token_type : latestPayload.tokenType,
+      expiresAt: expiresIn !== undefined ? Date.now() + expiresIn * 1000 : latestPayload.expiresAt,
+      scope: typeof json.scope === 'string' ? json.scope : latestPayload.scope,
+    }
+    return { kind: 'grant', payload: refreshedPayload }
+  })
+
+  return refreshedPayload ?? payload
 }
 
-/** Backwards-compatible single-key facade over the pool. */
-export function createKeyResolver(ctx: Context, config: () => ResolvedConfig): KeyResolver {
-  return createKeyPool(ctx, config).resolve
+export async function resolveConnectorAuth(
+  ctx: Context,
+  connectorId: string,
+  fallbackEnvRef?: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<ResolvedConnectorAuth | undefined> {
+  const credentials = getCredentialsService(ctx)
+  if (!credentials) return undefined
+
+  const key = connectorCredentialKey(connectorId)
+  const record = await credentials.readRecord(key)
+  if (record?.kind === 'api-key' && record.key) {
+    return {
+      kind: 'api-key',
+      token: record.key,
+      source: 'dsh-credentials',
+      extra: record.env,
+    }
+  }
+  if (record?.kind === 'grant' && isOAuthGrantPayload(record.payload)) {
+    const active = await refreshOAuthGrantIfNeeded(credentials, key, record, fetchFn)
+    if (active?.accessToken) {
+      return {
+        kind: 'grant',
+        token: active.accessToken,
+        tokenType: active.tokenType ?? 'Bearer',
+        source: 'dsh-credentials',
+        expiresAt: active.expiresAt,
+      }
+    }
+  }
+
+  if (fallbackEnvRef && isCredentialRefName(fallbackEnvRef)) {
+    const resolved = await credentials.resolve(credentialRef(fallbackEnvRef))
+    if (resolved?.value) {
+      return {
+        kind: 'env-ref',
+        token: resolved.value,
+        source: resolved.source,
+      }
+    }
+  }
+
+  return undefined
 }

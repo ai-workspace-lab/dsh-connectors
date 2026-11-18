@@ -1,35 +1,18 @@
 # AGENTS.md
 
-Этот файл дополняет корневой `/mnt/external/Project/DEV/AGENTS.md` и
-содержит правила и факты, специфичные для плагина `dsh-ollama-cloud-provider`.
+This repository implements `@ai-workspace-lab/dsh-connectors`, an independent DeepSeek Harness (`dsh`) plugin.
 
-## Product / Purpose
+## Architecture
 
-- **Проект**: `dsh-ollama-cloud-provider`
-- **Пакет**: `@goodandready/dsh-ollama-cloud-provider`
-- **DEV**: `/mnt/external/Project/DEV/dhsplugins/dsh-ollama-cloud-provider`
-- **Назначение**: LLM-провайдер для DeepSeek Harness, реализующий интеграцию с Ollama Cloud API (native и OpenAI-compatible transports, catalog, usage, analytics, multi-key rotation).
-- **Основные пользователи**: Пользователи DeepSeek Harness (Web и Desktop).
-- **Текущий статус**: active
-- **Статус проверен**: 11.11.2026, полный прогон тестового набора 158/158 тестов, preflight PASS, работа в production web и desktop профилях.
+- `src/catalog.ts`: Built-in first-batch connector definitions (`github`, `gitea`, `gitlab`, `gmail`, `google-workspaces`, `vault-server`, `cloudflare`, `aws-lightsail`, `gcp`, `linode-vps`).
+- `src/credentials.ts`: DSH Credential Store (`@deepseek-ai/dsh-credentials`) integration via `connectors/<id>` `CredentialKey` records (`ApiKeyRecord` and `GrantRecord`) and optional `CredentialRef` env fallbacks.
+- `src/oauth.ts`: OAuth 2.0 PKCE flow and token exchange.
+- `src/mcp-bridge.ts`: Remote MCP Streamable HTTP / SSE client and `ctx.tools` registration (`mcp__<connectorId>__<toolName>`).
+- `src/probe.ts`: Live REST & MCP health verification.
+- `src/service.ts`: `ConnectorsService` managing built-ins, custom MCP servers, and external plugin `registerPackage`.
+- `src/routes.ts`: Host HTTP API under `/plugins/connectors/*` protected by `verifyDesktop` / `verifyHost`.
+- `src/client/`: Browser UI registering into `settings.section` (`id: 'connectors'`).
 
-## Package Policy (DSH-плагин)
-- Все плагины проектируются публичными с первого коммита под scope `@goodandready/`.
-- Имя пакета: `@goodandready/dsh-ollama-cloud-provider`.
-- Публикация в GitHub/npm выполняется только после явного согласования владельца.
-- Релизные `.tgz` никогда не хранятся в корне исходников — только `dist/` или `/tmp`.
+## Verification
 
-## Project Index (`index.md`)
-- `index.md` создан и поддерживается в актуальном состоянии.
-- Навигация, команды build/test/release и архитектура описаны в `index.md`.
-
-## Essential Files
-- `docs/design/DESIGN.md` — обязательный дизайн-контракт пользовательского интерфейса и контрактов.
-- `docs/deployment/DEPLOYMENT.md` — инструкции и правила сборки и деплоя.
-- `deploy.sh` — штатный runner проверки и установки.
-- `scripts/pack-check.mjs` — автоматический страж размера пакета и отсутствия `*.tgz` в корне.
-
-## Правила кодовой базы
-- Никаких пустых `.catch(() => {})`: использовать `bestEffortFailed(label, err)` с логированием.
-- Сборка серверной библиотеки выполняется с `unbundle: true` для сохранения модульности доменов.
-- Защита write-маршрутов требует обязательной проверки same-origin и loopback-сокета.
+Run `npm run check` (`tsc --noEmit`, `node --import tsx --test`, `tsdown`, `pack:check`) and `node scripts/smoke-load.mjs` before committing.

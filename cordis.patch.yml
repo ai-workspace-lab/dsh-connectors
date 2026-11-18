@@ -1,11 +1,11 @@
-# dsh-nvidia-cloud-provider bundle layer.
-# Registers the `nvidia-nim` provider route. All fields are optional —
-# schema defaults apply.
+# dsh-connectors bundle layer.
+# Mounts the Connectors service, remote MCP bridge, DSH Credential Store
+# integration, and the Settings -> Connectors UI page.
 #
 # `name` must be the FULL package specifier as installed in the profile's
 # node_modules. Quote it: an unquoted YAML scalar starting with `@` fails.
 - insert:
-    - id: llm-nvidia-nim
-      name: "@ai-workspace-lab/dsh-nvidia-cloud-provider"
+    - id: connectors
+      name: "@ai-workspace-lab/dsh-connectors"
       config:
-        apiKeyEnv: NVIDIA_API_KEY
+        autoConnect: true

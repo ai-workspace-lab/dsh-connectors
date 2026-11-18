@@ -1,21 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
-// Type-only: client-service augmentations (`slots`, `locale`) and the
-// `settings.section` SlotMap entry.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-// Type-only: SlotMap merges for `main` and `sidebar.footer.action`.
-import type {} from './slots.ts'
 
+import { ConnectorsSettingsPage } from './connectors-page.tsx'
 import { dictionaries, NS } from './locales.ts'
-import { QuotaCard, QuotaPanel } from './quota-card.tsx'
-import { OllamaCloudSettingsPage } from './settings-page.tsx'
-import { OllamaProviderCard } from './provider-card.tsx'
 import { CSS, CSS_ID } from './styles.ts'
-
-interface LayoutSeam {
-  selectPanel(id: string | null): void
-}
 
 interface LooseSlots {
   inject(name: string, callback: () => () => void): () => void
@@ -26,7 +16,7 @@ function injectCss(): () => void {
   if (typeof document === 'undefined') return () => {}
   if (document.querySelector(`style[data-plugin-css="${CSS_ID}"]`) !== null) return () => {}
   const tag = document.createElement('style')
-  tag.dataset.dshPlugin = 'dsh-nvidia-cloud-provider'
+  tag.dataset.dshPlugin = 'dsh-connectors'
   tag.dataset.pluginCss = CSS_ID
   tag.textContent = CSS
   document.head.appendChild(tag)
@@ -35,67 +25,19 @@ function injectCss(): () => void {
 
 export const inject = ['slots', 'locale']
 
-/**
- * Browser half: the NVIDIA NIM settings section, a quota card at the bottom of
- * the sidebar, and the center panel it opens.
- */
 export function apply(ctx: Context): void {
-  ctx.effect(() => ctx.locale.register(NS, 'en', dictionaries.en), 'dsh-nvidia-cloud-provider: en copy')
-  ctx.effect(() => ctx.locale.register(NS, 'zh', dictionaries.zh), 'dsh-nvidia-cloud-provider: zh copy')
-  ctx.effect(() => injectCss(), 'dsh-nvidia-cloud-provider: styles')
+  ctx.effect(() => ctx.locale.register(NS, 'en', dictionaries.en), 'dsh-connectors: en copy')
+  ctx.effect(() => ctx.locale.register(NS, 'zh', dictionaries.zh), 'dsh-connectors: zh copy')
+  ctx.effect(() => injectCss(), 'dsh-connectors: styles')
 
   const t = ctx.locale.bind(NS)
   const slots = ctx.slots as unknown as LooseSlots
 
   ctx.slots.inject('settings.section', () => slots.register({
     name: 'settings.section',
-    id: 'nvidia',
-    order: 20,
+    id: 'connectors',
+    order: 25,
     label: () => t('nav'),
     locale: NS,
-  }, OllamaCloudSettingsPage))
-
-  ctx.slots.inject('settings.models.provider-card', () => {
-    const d1 = slots.register({
-      name: 'settings.models.provider-card',
-      key: 'llm-nvidia-nim',
-      locale: NS,
-    }, OllamaProviderCard)
-    const d2 = slots.register({
-      name: 'settings.models.provider-card',
-      key: 'nvidia-nim',
-      locale: NS,
-    }, OllamaProviderCard)
-    return () => {
-      if (typeof d1 === 'function') (d1 as () => void)()
-      if (typeof d2 === 'function') (d2 as () => void)()
-    }
-  })
-
-  // The center-column panel the sidebar card opens. `main` is declared by
-  // dsh-client-ui-layout; when that slot is absent this inject never fires.
-  ctx.slots.inject('main', () => slots.register({
-    name: 'main',
-    key: 'nvidia-panel',
-    locale: NS,
-    inject: () => ({
-      close: () => (ctx.get('layout') as LayoutSeam | undefined)?.selectPanel(null),
-    }),
-  }, QuotaPanel))
-
-  // The card sits directly above the Settings seat. It is gated on the
-  // `layout` service because opening the panel is its only action.
-  ctx.inject(['layout'], (layoutCtx) => {
-    const layoutSlots = layoutCtx.slots as unknown as LooseSlots
-    layoutCtx.slots.inject('sidebar.footer.action', () => layoutSlots.register({
-      name: 'sidebar.footer.action',
-      id: 'nvidia-quota',
-      order: 1,
-      locale: NS,
-      inject: () => ({
-        open: () => (ctx.get('layout') as LayoutSeam | undefined)?.selectPanel('nvidia-panel'),
-      }),
-    }, QuotaCard))
-  })
-
+  }, ConnectorsSettingsPage))
 }

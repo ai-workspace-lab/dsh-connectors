@@ -1,40 +1,51 @@
-const SECRET_QUERY = new Set([
-  'api_key', 'apikey', 'key', 'token', 'access_token', 'refresh_token',
-  'password', 'passwd', 'secret', 'client_secret', 'sig', 'signature',
-  'credential', 'code', 'auth',
-])
+/**
+ * Secret redaction and URL validation utilities.
+ * Ensures tokens, OAuth secrets, and authorization headers never leak into logs,
+ * error messages, or HTTP responses.
+ */
 
-const MAX_TEXT = 300
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /Bearer\s+[A-Za-z0-9._~+/=-]{6,}/gi,
+  /Basic\s+[A-Za-z0-9+/=]{6,}/gi,
+  /\b(ghp|gho|ghu|ghs|ghr|github_pat|glpat|hvs|lin|cf|ya29|AIza|AKIA|ASIA)[A-Za-z0-9._-]{8,}/g,
+  /([?&](?:access_token|token|client_secret|code|api_key|key)=)[^&\s]+/gi,
+]
 
-export function redactText(value: string, max = MAX_TEXT): string {
-  let text = value
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
-    .replace(/\r?\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  text = text
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-[redacted]')
-    .replace(/\b(api[_-]?key|token|secret|password|authorization)\s*[:=]\s*[^\s&,"']+/gi, '$1=[redacted]')
-  return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text
-}
-
-export function sanitizeUrl(raw: string): string {
-  try {
-    const url = new URL(raw)
-    url.username = ''
-    url.password = ''
-    url.hash = ''
-    for (const key of [...url.searchParams.keys()]) {
-      if (SECRET_QUERY.has(key.toLowerCase())) url.searchParams.delete(key)
-    }
-    return url.toString().replace(/\/$/, '')
-  } catch {
-    return redactText(raw)
+export function safeErrorMessage(input: unknown): string {
+  const raw = input instanceof Error ? input.message : String(input ?? 'Unknown error')
+  let sanitized = raw
+  for (const pattern of SECRET_PATTERNS) {
+    sanitized = sanitized.replace(pattern, (match, prefix?: string) => {
+      if (typeof prefix === 'string' && prefix.length > 0 && match.startsWith(prefix)) {
+        return `${prefix}[REDACTED]`
+      }
+      return '[REDACTED]'
+    })
   }
+  return sanitized.slice(0, 500)
 }
 
-export function safeErrorMessage(error: unknown, fallback = 'request failed'): string {
-  const text = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback
-  return redactText(text === '' ? fallback : text)
+export function maskSecret(secret: string | undefined): string {
+  if (!secret || secret.length < 8) return secret ? '••••' : ''
+  return `${secret.slice(0, 4)}••••${secret.slice(-4)}`
+}
+
+export function normalizeHttpUrl(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined
+  const trimmed = raw.trim()
+  if (trimmed === '') return undefined
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    throw new Error(`Invalid URL: ${trimmed}`)
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`Unsupported URL protocol "${parsed.protocol}"; expected http: or https:`)
+  }
+  return parsed.toString().replace(/\/+$/, '')
+}
+
+export function isValidConnectorSlug(id: string): boolean {
+  return /^[a-z][a-z0-9-]{1,47}$/.test(id)
 }

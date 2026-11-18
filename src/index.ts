@@ -1,180 +1,75 @@
 import type { Context } from '@deepseek-ai/cordis'
-// Type-only: pulls the `ctx.attachments` and `ctx.settings` service merges into this program.
-import type {} from '@deepseek-ai/dsh-attachment'
+import type {} from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-web'
 
-import { OllamaCloudAdapter } from './adapter.ts'
-import { setBestEffortLogger, bestEffortFailed } from './best-effort.ts'
-import { refreshCatalog, effectiveModel } from './catalog.ts'
 import { applyCommands } from './commands.ts'
-import { Config, NS, resolveConfig, unwrapVolatileConfig } from './config.ts'
-import { createKeyPool } from './credentials.ts'
-import { registerPluginUpdater } from './plugin-updater.ts'
-import { PROVIDER } from './provider-ids.ts'
-import { flushRequestLog, readRequestHeatmap } from './request-log.ts'
+import { Config, NS, resolveConfig } from './config.ts'
 import { applyRoutes } from './routes.ts'
-import { applyOllamaTuiSettings } from './tui-settings.ts'
-import { createUsageReader } from './usage.ts'
-import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './web.ts'
+import { ConnectorsService } from './service.ts'
+import { applyConnectorsTuiSettings } from './tui-settings.ts'
 
-export const name = '@ai-workspace-lab/dsh-nvidia-cloud-provider'
-export const inject = ['llm']
+export const name = '@ai-workspace-lab/dsh-connectors'
+export const inject = {
+  optional: ['credentials', 'webServer', 'settings', 'commands', 'tools'],
+}
 
-export { Config, resolveConfig }
-export { PROVIDER } from './provider-ids.ts'
-export { OllamaCloudAdapter }
-export type { OllamaCloudAdapterDeps } from './adapter.ts'
-export type { Config as OllamaCloudConfig, ResolvedConfig, TransportId } from './config.ts'
-export type { ResolvedKey } from './credentials.ts'
-export { createKeyPool, createKeyResolver } from './credentials.ts'
-export { applyCommands } from './commands.ts'
-export type { CommandDeps } from './commands.ts'
+export { Config, NS, resolveConfig }
+export { BUILTIN_CONNECTORS, findBuiltinConnector } from './catalog.ts'
+export {
+  CREDENTIAL_SCOPE,
+  connectorCredentialKey,
+  deleteConnectorCredential,
+  describeConnectorCredential,
+  resolveConnectorAuth,
+  saveOAuthGrant,
+  saveTokenCredential,
+} from './credentials.ts'
+export {
+  buildAuthHeaders,
+  callRemoteMcpTool,
+  discoverRemoteMcpTools,
+  qualifyConnectorToolName,
+  registerMcpToolsOnRegistry,
+} from './mcp-bridge.ts'
+export { OAuthFlowManager } from './oauth.ts'
+export { probeConnector } from './probe.ts'
 export { applyRoutes } from './routes.ts'
-export type { RouteDeps } from './routes.ts'
-export type { UsageReport, UsageResult, UsageWindow } from './usage.ts'
-export { normalizeBalance, normalizeUsage, createUsageReader } from './usage.ts'
-export { classifyResponseError } from './errors.ts'
-export { clearCatalogCache, describeModel, effectiveModel } from './catalog.ts'
+export { ConnectorsService } from './service.ts'
+export { applyCommands } from './commands.ts'
+export { applyConnectorsTuiSettings, buildConnectorsTuiSection } from './tui-settings.ts'
+export type * from './types.ts'
 
-/**
- * Register the `ollama-cloud` route against the dsh `llm` service. Requests
- * resolve their key per call, so a changed credential reaches the next request
- * without a restart.
- */
-export function apply(ctx: Context, config: Config): void {
-  const logger = ctx.logger('llm-nvidia-nim')
-  setBestEffortLogger({ debug: (message) => logger.debug(message), warn: (message) => logger.warn(message) })
-  const current = () => resolveConfig(unwrapVolatileConfig(config))
-  const keys = createKeyPool(ctx, current)
-  const usage = createUsageReader(current, (provider) => keys.resolve(provider))
-  const adapter = new OllamaCloudAdapter({
-    config: current,
-    resolveKey: (provider) => keys.resolve(provider),
-    resolveKeys: (provider) => keys.resolveAll(provider),
-    resolveAttachments: () => ctx.get('attachments'),
-    warn: (message) => ctx.logger('llm-nvidia-nim').warn(message),
-  })
-
-  ctx.llm.registerConfigurableProviders([{
-    provider: PROVIDER,
-    displayName: 'NVIDIA NIM',
-    settingsNs: NS,
-    settingsPath: [],
-    defaultBaseURL: 'https://integrate.api.nvidia.com',
-  }])
-  ctx.llm.registerAdapter([PROVIDER], adapter)
-  logger.info(`registered provider: ${PROVIDER}`)
-  if (typeof (ctx.llm as { registerModelDiscovery?: unknown }).registerModelDiscovery === 'function') {
-    ctx.llm.registerModelDiscovery(NS, async (_request, signal) => {
-      const ids = await refreshCatalog(current(), fetch, true)
-      return ids.map((id) => {
-        const eff = effectiveModel(id, current())
-        return {
-          id: eff.id,
-          name: eff.name,
-          contextWindow: eff.contextWindow,
-          maxTokens: eff.maxTokens,
-        }
-      })
-    })
+export function apply(ctx: Context, config: Partial<Config> = {}): void {
+  const logger = ctx.logger('connectors')
+  const resolved = resolveConfig(config)
+  const service = new ConnectorsService(ctx, resolved)
+  const provide = (ctx as unknown as { provide?: (name: string, value: unknown) => void }).provide
+  if (typeof provide === 'function') {
+    provide.call(ctx, 'connectors', service)
   }
-  ctx.effect(() => () => { void flushRequestLog() }, 'dsh-nvidia-cloud-provider: flush request log')
 
   ctx.effect(() => {
-    const initial = current()
-    const warm = initial.autoRefresh
-      ? setTimeout(() => {
-          const config = current()
-          if (config.autoRefresh) void refreshCatalog(config, fetch).catch((err: unknown) => bestEffortFailed('warmCatalog', err))
-        }, 1_000)
-      : undefined
-    warm?.unref?.()
-    const intervalMs = Math.max(1, initial.refreshMinutes) * 60_000
-    const timer = initial.autoRefresh && initial.refreshMinutes > 0
-      ? setInterval(() => {
-          const config = current()
-          if (!config.autoRefresh || config.refreshMinutes <= 0) return
-          void refreshCatalog(config, fetch, true).catch((err: unknown) => bestEffortFailed('refreshCatalog', err))
-        }, intervalMs)
-      : undefined
-    timer?.unref?.()
+    const disposeRoutes = applyRoutes(ctx, { service })
+    const disposeCommands = applyCommands(ctx, service)
+    const disposeTui = applyConnectorsTuiSettings(ctx)
     return () => {
-      if (warm !== undefined) clearTimeout(warm)
-      if (timer !== undefined) clearInterval(timer)
+      disposeTui()
+      disposeCommands()
+      disposeRoutes()
+      service.disposeAll()
     }
-  }, 'dsh-nvidia-cloud-provider: catalog refresh scheduler')
+  }, 'dsh-connectors: lifecycle')
 
-  // The plugin ships its own UI; declaring that keeps SettingsForms from
-  // publishing an auto-generated page for this entry.
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.configure({ auto: false }, ctx.fiber)
-  })
+  ctx.effect(() => {
+    const timer = setTimeout(() => {
+      void service.syncEnabledConnectors().catch((err) => {
+        logger.warn('dsh-connectors: initial sync failed: %s', err instanceof Error ? err.message : String(err))
+      })
+    }, 250)
+    timer.unref?.()
+    return () => clearTimeout(timer)
+  }, 'dsh-connectors: startup-sync')
 
-  ctx.inject(['commands'], (commandCtx) => {
-    applyCommands(commandCtx, { config: current, pool: keys, usage, adapter })
-  })
-
-  let refreshTuiSettings: (() => void) | undefined
-  ctx.inject(['tuiSettingsSections'], (tuiCtx) => {
-    refreshTuiSettings = applyOllamaTuiSettings(tuiCtx, {
-      ns: NS,
-      title: 'NVIDIA NIM',
-      apiKeyRef: () => current().apiKeyEnv,
-      accountSlots: () => [
-        { id: 'default', label: 'default' },
-        ...current().accounts.map((account, index) => ({
-          id: typeof account.label === 'string' && account.label.trim() !== ''
-            ? account.label.trim()
-            : `account-${index + 2}`,
-          label: typeof account.label === 'string' && account.label.trim() !== ''
-            ? account.label.trim()
-            : `account-${index + 2}`,
-        })),
-      ],
-      visibleModels: () => current().visibleModels,
-      activeAccount: () => current().activeAccount,
-      stickySession: () => current().stickySession,
-      showSidebarQuota: () => current().showSidebarQuota,
-      planLabel: () => current().planLabel,
-    })
-  })
-
-  ctx.inject(['web'], (webCtx) => {
-    const options = {
-      baseURL: () => current().apiBase,
-      resolveApiKey: async (): Promise<string | undefined> => {
-        try {
-          return (await keys.resolve(PROVIDER)).key
-        } catch {
-          return undefined
-        }
-      },
-    }
-    webCtx.effect(
-      () => webCtx.web.registerSearchProvider(new OllamaWebSearchProvider(options)),
-      'dsh-nvidia-cloud-provider: web search provider',
-    )
-    webCtx.effect(
-      () => webCtx.web.registerFetchProvider(new OllamaWebFetchProvider(options)),
-      'dsh-nvidia-cloud-provider: web fetch provider',
-    )
-  })
-
-  ctx.inject(['webServer'], (webCtx) => {
-    applyRoutes(webCtx, webCtx.webServer, {
-      config: current,
-      adapter,
-      pool: keys,
-      usage,
-      heatmap: readRequestHeatmap,
-      refreshTui: () => refreshTuiSettings?.(),
-    })
-    webCtx.effect(() => registerPluginUpdater(webCtx, {
-      endpoint: '/dsh-nvidia/update',
-      packageName: '@ai-workspace-lab/dsh-nvidia-cloud-provider',
-      manifestUrl: new URL('../package.json', import.meta.url),
-    }), 'dsh-nvidia-cloud-provider: plugin updater')
-  })
+  logger.info('dsh-connectors initialized with %d built-in connectors', service.listDefinitions().length)
 }

@@ -1,391 +1,120 @@
-export type TransportId = 'native' | 'openai-chat'
+import type {
+  AuthMethod,
+  ConnectorView,
+  CustomMcpConnectorSpec,
+} from '../types.ts'
 
-export interface PublicConfig {
-  apiKeyEnv: string
-  apiBase: string
-  openAiBase: string
-  usageUrl: string
-  balanceUrl: string
-  transport: TransportId
-  modelTransports: Readonly<Record<string, TransportId>>
-  requestTimeoutMs: number
-  streamIdleTimeoutMs: number
-  attemptTimeoutMs: number
-  retryMaxRetries: number
-  retryBaseDelayMs: number
-  retryMaxDelayMs: number
-  retryJitter: number
-  visibleModels: readonly string[]
-  showAllModels: boolean
-  modelVisibility: Readonly<Record<string, boolean>>
-  manualModels: ManualModel[]
-  modelOverrides: Record<string, ModelOverride>
-  modelOrder: readonly string[]
-  filterModelsByPlan: boolean
-  contextWindow: number | null
-  contextWindowOverrides: Readonly<Record<string, number>>
-  maxOutputTokens: number | null
-  temperature: number | null
-  topK: number | null
-  topP: number | null
-  minP: number | null
-  seed: number | null
-  repeatPenalty: number | null
-  repeatLastN: number | null
-  numCtx: number | null
-  keepAlive: string
-  stop: readonly string[]
-  autoRefresh: boolean
-  refreshMinutes: number
-  accounts: ReadonlyArray<{ label: string; apiKeyEnv: string }>
-  modelAccountRules: ReadonlyArray<{ pattern: string; account: string }>
-  stickySession: boolean
-  activeAccount: string
-  showSidebarQuota: boolean
-  planLabel: string
-  priceOverrides: Readonly<Record<string, { input?: number; output?: number; cacheRead?: number }>>
-  userAgent: string
-}
+export type {
+  AuthMethod,
+  ConnectorCategory,
+  ConnectorCredentialStatus,
+  ConnectorDefinition,
+  ConnectorInstanceSettings,
+  ConnectorRuntimeState,
+  ConnectorView,
+  CustomMcpConnectorSpec,
+  McpToolSummary,
+} from '../types.ts'
 
-export interface RoutingTraceRow {
-  at: number
-  provider: string
-  model: string
-  account: string
-  reason: 'rule' | 'sticky' | 'pinned' | 'default' | 'rotation'
-  fallback: boolean
-  ok: boolean
-  error?: string
-}
-
-export interface ManualModel {
-  id: string
-  enabled?: boolean
-  name?: string
-  contextWindow?: number
-  maxTokens?: number
-  image?: boolean
-  thinking?: boolean
-  reasoningEfforts?: string[]
-  defaultReasoning?: string
-  tools?: boolean
-}
-
-export interface ModelOverride {
-  contextWindow?: number
-  image?: boolean
-  thinking?: boolean
-  reasoningEfforts?: string[]
-  defaultEffort?: string
-  enabled?: boolean
-}
-
-export interface ModelRow {
-  id: string
-  name: string
-  description: string
-  transport: TransportId
-  contextWindow: number
-  maxTokens: number
-  free: boolean
-  cost: { input: number; output: number; cacheRead: number; free: boolean; priced: boolean }
-  available: boolean
-  input: readonly string[]
-  reasoning: readonly string[]
-  defaultReasoning: string | null
-  tools: boolean
-  visible: boolean
-}
-
-export interface UsageWindow {
-  percentUsed: number
-  resetsAt?: string
-  status?: string
-}
-
-export interface UsageTotals {
-  requests: number
-  usd: number
-  inputTokens: number
-  cachedInputTokens: number
-  outputTokens: number
-}
-
-export interface CreditBalance {
-  includedRemaining: number
-  includedAllowance: number
-  purchased: number
-  periodFrom?: string
-  periodUntil?: string
-}
-
-export interface UsageReport {
-  kind: 'credits' | 'legacy'
-  credits?: CreditBalance
-  legacy?: { fiveHour?: UsageWindow; weekly?: UsageWindow }
-  windows: {
-    d24?: UsageTotals
-    d7?: UsageTotals
-    d30?: UsageTotals
-    session?: UsageTotals
-    weekly?: UsageTotals
-    monthly?: UsageTotals
-  }
-  byModel: Array<{ model: string } & UsageTotals>
-  byWindow?: Partial<Record<'24h' | '7d' | '30d', Array<{ model: string } & UsageTotals>>>
-  range: '24h' | '7d' | '30d'
-}
-
-export interface UsageState {
-  report?: UsageReport
-  error?: string
-  checkedAt: number
-  stale?: boolean
-}
-
-export interface AccountRow {
-  label: string
-  ref: string
-  default: boolean
-  configured: boolean
-  source: string
-  active: boolean
-  coolingUntil: number
-  mark: string
-  usage: UsageState | null
-}
-
-export interface HostState {
-  config: PublicConfig
-  key: { configured: boolean; writable: boolean; source?: string }
-  accounts: AccountRow[]
-  models: ModelRow[]
-  usage: UsageState | null
-  routing: RoutingTraceRow[]
-  revision?: number
-}
-
-export interface ServiceStatus {
-  ok: boolean
-  status: number | null
-  latencyMs: number
-  checkedAt: string
-  error?: string
-}
-
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
     credentials: 'same-origin',
-    ...init,
     headers: {
-      accept: 'application/json',
-      ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
+      'content-type': 'application/json',
       ...(init?.headers ?? {}),
     },
+    ...init,
   })
-  const body = await response.json().catch(() => ({})) as { error?: string }
-  if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
-  return body as T
+  const data = await res.json() as T & { error?: string }
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed (${res.status})`)
+  }
+  return data
 }
 
-export function fetchState(): Promise<HostState> {
-  return call<HostState>('/dsh-nvidia/state')
+export async function fetchConnectorsState(): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/state')
+  return data.connectors
 }
 
-export function fetchServiceStatus(): Promise<ServiceStatus> {
-  return call<ServiceStatus>('/dsh-nvidia/status')
-}
-
-export function refreshState(): Promise<HostState> {
-  return call<HostState>('/dsh-nvidia/refresh', { method: 'POST', body: '{}' })
-}
-
-export function refreshModels(): Promise<HostState> {
-  return call<HostState>('/dsh-nvidia/models/refresh', { method: 'POST', body: '{}' })
-}
-
-export interface DiscoveryResult {
-  base: string
-  models: string[]
-}
-
-export function discoverModels(apiBase: string, apiKey: string): Promise<DiscoveryResult> {
-  return call<DiscoveryResult>('/dsh-nvidia/discover', {
-    method: 'POST',
-    body: JSON.stringify({ apiBase, apiKey }),
-  })
-}
-
-export function resetCooldowns(): Promise<{ ok: true }> {
-  return call('/dsh-nvidia/cooldowns/reset', { method: 'POST', body: '{}' })
-}
-
-export function saveConfig(patch: Record<string, unknown>): Promise<{ ok: true }> {
-  return call('/dsh-nvidia/config', { method: 'POST', body: JSON.stringify({ patch }) })
-}
-
-export function fetchUsage(range: '24h' | '7d' | '30d'): Promise<UsageState> {
-  return call(`/dsh-nvidia/usage?range=${encodeURIComponent(range)}`)
-}
-
-export interface UpdateStatus {
-  packageName: string
-  currentVersion: string
-  latestVersion?: string
-  latestCheckFailed: boolean
-  updateAvailable: boolean
-  profileName: string
-  canAutoUpdate: boolean
-  updatedVersion?: string
-  restartRequired?: boolean
-}
-
-export function fetchUpdate(): Promise<UpdateStatus> {
-  return call<UpdateStatus>('/dsh-nvidia/update')
-}
-
-export function installUpdate(): Promise<UpdateStatus> {
-  return call<UpdateStatus>('/dsh-nvidia/update', {
-    method: 'POST',
-    headers: { 'x-dsh-plugin-update': '1' },
-    body: '{}',
-  })
-}
-
-export function saveKey(ref: string, key: string): Promise<{ ok: true }> {
-  return call('/dsh-nvidia/key', { method: 'POST', body: JSON.stringify({ ref, key }) })
-}
-
-export function clearKey(ref: string): Promise<{ ok: true }> {
-  return call('/dsh-nvidia/key/clear', { method: 'POST', body: JSON.stringify({ ref }) })
-}
-
-export interface TestResult {
-  ok: boolean
-  model: string
-  provider: string
-  latencyMs: number
-  text?: string
-  finish?: unknown
-  error?: string
-}
-
-export interface ModelUsageRow {
-  provider: string
-  model: string
-  sessions: number
-  turns: number
-  steps: number
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  cost: number
-  priced: boolean
-  partial: boolean
-  free: boolean
-  llmMs: number
-  ttftMs: number
-  ttftSteps: number
-  decodeMs: number
-}
-
-export interface AnalyticsSummary {
-  sessions: number
-  requests: number
-  tokens: number
-  inputTokens: number
-  outputTokens: number
-  reasoningTokens: number | null
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  cost: number
-  priced: boolean
-  partial: boolean
-  free: boolean
-  avgTtftMs: number | null
-  avgLatencyMs: number | null
-  errors: number | null
-  successRate: number | null
-}
-
-export interface DayUsageRow {
-  date: string
-  sessions: number
-  requests: number
-  tokens: number
-  cost: number
-  priced: boolean
-  partial: boolean
-  free: boolean
-  avgTtftMs: number | null
-}
-
-export interface SessionUsageRow {
+export async function updateConnectorConfig(payload: {
   id: string
-  provider: string
-  model: string
-  at: number
-  requests: number
-  tokens: number
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  cost: number
-  priced: boolean
-  partial: boolean
-  free: boolean
-  avgTtftMs: number | null
-  avgLatencyMs: number | null
+  enabled?: boolean | undefined
+  authMethod?: AuthMethod | undefined
+  baseUrl?: string | undefined
+  mcpUrl?: string | undefined
+  envRef?: string | undefined
+  region?: string | undefined
+  projectId?: string | undefined
+  namespace?: string | undefined
+  headerName?: string | undefined
+  oauthClientId?: string | undefined
+  oauthScopes?: string | undefined
+}): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.connectors
 }
 
-export interface ModelRequestHeatmap {
-  provider: string
-  model: string
-  total: number
-  hours: number[]
-  grid: number[][]
+export async function saveConnectorToken(
+  id: string,
+  token: string,
+  extra?: Record<string, string>,
+): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/token', {
+    method: 'POST',
+    body: JSON.stringify({ id, token, extra }),
+  })
+  return data.connectors
 }
 
-export interface AccountRequestHeatmap {
-  account: string
-  total: number
-  errors: number
-  avgLatencyMs: number | null
-  avgTtftMs: number | null
-  hours: number[]
-  grid: number[][]
+export async function clearConnectorToken(id: string): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/token', {
+    method: 'DELETE',
+    body: JSON.stringify({ id }),
+  })
+  return data.connectors
 }
 
-export interface RequestHeatmap {
-  since: number
-  total: number
-  hours: number[]
-  grid: number[][]
-  firstAt: number | null
-  lastAt: number | null
-  models: ModelRequestHeatmap[]
-  accounts: AccountRequestHeatmap[]
+export async function startConnectorOAuth(payload: {
+  id: string
+  clientId?: string | undefined
+  clientSecret?: string | undefined
+  scopes?: string | undefined
+}): Promise<{ authorizeUrl: string; state: string }> {
+  return requestJson<{ authorizeUrl: string; state: string }>('/plugins/connectors/oauth/start', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload,
+      origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+    }),
+  })
 }
 
-export interface AnalyticsReport {
-  since: number
-  scannedSessions: number
-  matchedSessions: number
-  models: ModelUsageRow[]
-  summary: AnalyticsSummary
-  days: DayUsageRow[]
-  sessions: SessionUsageRow[]
-  truncated?: boolean
-  totalFiles?: number
-  heatmap?: RequestHeatmap
+export async function testConnectorConnection(id: string): Promise<{
+  result: { state: string; latencyMs: number; message: string }
+  connectors: ConnectorView[]
+}> {
+  return requestJson('/plugins/connectors/test', {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  })
 }
 
-export function fetchAnalytics(days = 30): Promise<AnalyticsReport> {
-  return call(`/dsh-nvidia/analytics?days=${encodeURIComponent(String(days))}`)
+export async function upsertCustomConnector(spec: CustomMcpConnectorSpec): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/custom', {
+    method: 'POST',
+    body: JSON.stringify(spec),
+  })
+  return data.connectors
 }
 
-export function testConnection(model: string): Promise<TestResult> {
-  return call('/dsh-nvidia/test', { method: 'POST', body: JSON.stringify({ model }) })
+export async function deleteCustomConnector(id: string): Promise<ConnectorView[]> {
+  const data = await requestJson<{ connectors: ConnectorView[] }>('/plugins/connectors/custom', {
+    method: 'DELETE',
+    body: JSON.stringify({ id }),
+  })
+  return data.connectors
 }

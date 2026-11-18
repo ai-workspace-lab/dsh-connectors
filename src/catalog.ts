@@ -1,425 +1,284 @@
-import { bestEffortFailed } from './best-effort.ts'
-import {
-  DEFAULT_CONTEXT_WINDOW,
-  DEFAULT_GENERATE_MAX_TOKENS,
-  DEFAULT_MAX_TOKENS,
-  type ManualModel,
-  type ResolvedConfig,
-  type TransportId,
-} from './config.ts'
-import { clearCatalogSnapshot, loadCatalogSnapshot, saveCatalogSnapshot } from './catalog-cache.ts'
-import { createAttemptBudget } from './attempt.ts'
-import { GENERATED_MODELS, type OllamaCloudModelMeta } from './models.generated.ts'
-import { formatPrice, priceFor } from './pricing.ts'
-import { normalizeThinking } from './reasoning.ts'
-import { modelsUrlFor, tagsUrlFor } from './routing.ts'
-
-const CATALOG_TTL_MS = 10 * 60 * 1000
-const CATALOG_TIMEOUT_MS = 15_000
-
-interface LiveModel {
-  slug?: unknown
-  id?: unknown
-  display_name?: unknown
-  context_window?: unknown
-  max_context_window?: unknown
-  input_modalities?: unknown
-  supported_reasoning_levels?: unknown
-  default_reasoning_level?: unknown
-  visibility?: unknown
-  supported_in_api?: unknown
-  model_type?: unknown
-  supports_thinking?: unknown
-  supports_tools?: unknown
-}
-
-interface ModelsPayload {
-  data?: Array<LiveModel | { id?: unknown }>
-  models?: LiveModel[]
-}
-
-interface TagsPayload {
-  models?: Array<{ name?: unknown; model?: unknown; capabilities?: unknown }>
-}
-
-const liveMeta = new Map<string, OllamaCloudModelMeta>()
-const cache = new Map<string, { at: number; ids: readonly string[] }>()
-const inflight = new Map<string, Promise<readonly string[]>>()
-const diskLoaded = new Set<string>()
-let generation = 0
-
-function liveKey(base: string, id: string): string {
-  return `${base}|${id}`
-}
-
-const FALLBACK_META: OllamaCloudModelMeta = {
-  id: '',
-  name: '',
-  transport: 'native',
-  contextWindow: DEFAULT_CONTEXT_WINDOW,
-  maxTokens: DEFAULT_MAX_TOKENS,
-  input: ['text'],
-  reasoning: [],
-  reasoningToggle: false,
-  tools: true,
-  free: false,
-  available: true,
-  cost: { input: 0, output: 0, cacheRead: 0 },
-}
-
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined
-}
-
-function num(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : undefined
-}
-
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === 'string' && entry !== '')
-}
-
-function effortNames(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const out: string[] = []
-  for (const entry of value) {
-    if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
-      const effort = str((entry as Record<string, unknown>).effort)
-      if (effort !== undefined) out.push(effort)
-    } else if (typeof entry === 'string' && entry !== '') {
-      out.push(entry)
-    }
-  }
-  return out
-}
-
-function capabilitiesByModel(tags: TagsPayload | undefined): Map<string, Set<string>> {
-  const out = new Map<string, Set<string>>()
-  for (const entry of tags?.models ?? []) {
-    const name = str(entry.name) ?? str(entry.model)
-    if (name === undefined) continue
-    out.set(name, new Set(strings(entry.capabilities)))
-  }
-  return out
-}
-
-function isGenerativeChatModel(id: string): boolean {
-  const lower = id.toLowerCase()
-  if (lower.includes('embed') || lower.includes('rerank') || lower.includes('reward') || lower.includes('detector')) {
-    return false
-  }
-  return true
-}
-
-function metaFromLive(entry: LiveModel, caps: Set<string> | undefined): OllamaCloudModelMeta {
-  const id = str(entry.slug) ?? str(entry.id) ?? ''
-  const isChat = isGenerativeChatModel(id)
-  const base = GENERATED_MODELS[id]
-  const levels = effortNames(entry.supported_reasoning_levels)
-  const isThinkingExplicit = entry.supports_thinking === true || caps?.has('thinking') === true || levels.length > 0
-  const thinking = isThinkingExplicit || id.includes('reason') || id.includes('r1')
-  const toggle = thinking && levels.length === 0
-  const modalities = strings(entry.input_modalities)
-  const isVlm = entry.model_type === 'vlm' || id.includes('vl') || id.includes('clip')
-  const image = modalities.includes('image')
-    || isVlm
-    || (base?.input.includes('image') === true && modalities.length === 0)
-  const defaultLevels = levels.length > 0 ? levels : (base?.reasoning ?? (thinking ? ['low', 'medium', 'high'] : []))
-  const normalized = normalizeThinking(
-    id,
-    defaultLevels,
-    toggle || base?.reasoningToggle === true,
-    str(entry.default_reasoning_level) ?? base?.defaultReasoning,
-  )
-  const tools = entry.supports_tools !== undefined
-    ? entry.supports_tools === true
-    : (caps?.has('tools') === true || base?.tools === true || (!id.includes('embed') && !id.includes('video') && !id.includes('reward')))
-  return {
-    id,
-    name: str(entry.display_name) ?? id,
-    transport: base?.transport ?? 'openai-chat',
-    contextWindow: num(entry.context_window)
-      ?? num(entry.max_context_window)
-      ?? base?.contextWindow
-      ?? DEFAULT_CONTEXT_WINDOW,
-    maxTokens: base?.maxTokens ?? DEFAULT_MAX_TOKENS,
-    input: image ? ['text', 'image'] : ['text'],
-    reasoning: normalized.reasoning,
-    reasoningToggle: toggle || base?.reasoningToggle === true,
-    tools,
-    free: base?.free !== false,
-    available: isChat && entry.supported_in_api !== false && entry.visibility !== 'hide',
-    ...(normalized.defaultReasoning === undefined
-      ? {}
-      : { defaultReasoning: normalized.defaultReasoning }),
-    cost: base?.cost ?? { input: 0, output: 0, cacheRead: 0 },
-  }
-}
-
-function metaForBase(base: string): Record<string, OllamaCloudModelMeta> {
-  const out: Record<string, OllamaCloudModelMeta> = {}
-  const prefix = `${base}|`
-  for (const [key, meta] of liveMeta) {
-    if (key.startsWith(prefix)) out[key.slice(prefix.length)] = meta
-  }
-  return out
-}
-
-async function persist(base: string, ids: readonly string[]): Promise<void> {
-  await saveCatalogSnapshot(base, ids, metaForBase(base))
-}
-
-/** Replace the in-memory live metadata for one API base with one successful response. */
-function adoptLive(models: readonly LiveModel[], tags: TagsPayload | undefined, base: string): string[] {
-  const caps = capabilitiesByModel(tags)
-  const ids: string[] = []
-  for (const entry of models) {
-    const meta = metaFromLive(entry, caps.get(str(entry.slug) ?? ''))
-    if (meta.id === '') continue
-    liveMeta.set(liveKey(base, meta.id), meta)
-    ids.push(meta.id)
-  }
-  const keep = new Set(ids)
-  const prefix = `${base}|`
-  for (const key of liveMeta.keys()) {
-    if (!key.startsWith(prefix)) continue
-    const id = key.slice(prefix.length)
-    if (!keep.has(id)) liveMeta.delete(key)
-  }
-  return ids
-}
-
-async function fetchJson(
-  url: string,
-  config: ResolvedConfig,
-  fetchImpl: typeof fetch,
-  signal: AbortSignal,
-): Promise<unknown> {
-  const response = await fetchImpl(url, {
-    headers: {
-      accept: 'application/json',
-      'user-agent': config.userAgent,
-    },
-    signal,
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json()
-}
+import type { ConnectorDefinition } from './types.ts'
 
 /**
- * Refresh the live catalog (public, no key required) and return its ids.
- * Network failures keep the previous live metadata and fall back to the
- * generated snapshot, so the picker always has something to show.
- *
- * A cached catalog is served immediately, even after its TTL: the network
- * refresh runs in the background so the picker never blocks on a stale entry.
- * Only the first load (no cache) waits for the network.
+ * First-batch built-in connectors for DeepSeek Harness (`dsh-connectors`).
  */
-export async function refreshCatalog(
-  config: ResolvedConfig,
-  fetchImpl: typeof fetch = fetch,
-  force = false,
-): Promise<readonly string[]> {
-  const key = config.apiBase
-  if (!diskLoaded.has(key)) {
-    diskLoaded.add(key)
-    const snapshot = await loadCatalogSnapshot(key)
-    if (snapshot !== undefined && !cache.has(key)) {
-      cache.set(key, { at: snapshot.at, ids: snapshot.ids })
-      for (const [id, meta] of Object.entries(snapshot.meta)) liveMeta.set(liveKey(key, id), meta)
-    }
-  }
-  const cached = cache.get(key)
-  if (!force && cached !== undefined) {
-    if (config.autoRefresh && Date.now() - cached.at >= CATALOG_TTL_MS) refreshInBackground(config, fetchImpl, key)
-    return cached.ids
-  }
-  return refreshNow(config, fetchImpl, key, cached !== undefined, generation)
-}
+export const BUILTIN_CONNECTORS: readonly ConnectorDefinition[] = [
+  {
+    id: 'github',
+    name: 'GitHub',
+    shortDescEn: 'Repositories, pull requests, issues, Actions, and GitHub Copilot remote MCP.',
+    shortDescZh: '代码仓库、Pull Request、Issue、Actions 与 GitHub 远程 MCP 服务。',
+    category: 'code',
+    source: 'builtin',
+    authMethods: ['oauth', 'token'],
+    defaultBaseUrl: 'https://api.github.com',
+    defaultMcpUrl: 'https://api.githubcopilot.com/mcp/',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'GITHUB_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://github.com/login/oauth/authorize',
+      tokenUrl: 'https://github.com/login/oauth/access_token',
+      defaultScopes: ['repo', 'read:user', 'read:org'],
+      pkce: true,
+    },
+    docsUrl: 'https://github.com/github/github-mcp-server',
+    fields: [
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://api.githubcopilot.com/mcp/' },
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://api.github.com' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GITHUB_TOKEN' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Ov23li...' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'gitea',
+    name: 'Gitea',
+    shortDescEn: 'Self-hosted or Gitea.com Git repositories, issues, PRs, and MCP endpoint.',
+    shortDescZh: '自托管或 Gitea.com 代码仓库、工单、PR 与远程 MCP 接入。',
+    category: 'code',
+    source: 'builtin',
+    authMethods: ['token', 'oauth'],
+    defaultBaseUrl: 'https://gitea.com',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'token',
+    defaultEnvRef: 'GITEA_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://gitea.com/login/oauth/authorize',
+      tokenUrl: 'https://gitea.com/login/oauth/access_token',
+      defaultScopes: ['read:user', 'write:repository', 'write:issue'],
+      pkce: true,
+    },
+    docsUrl: 'https://docs.gitea.com/',
+    fields: [
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://gitea.com' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://gitea.example.com/api/v1/mcp' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GITEA_TOKEN' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Gitea OAuth App Client ID' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'gitlab',
+    name: 'GitLab',
+    shortDescEn: 'GitLab SaaS or self-managed projects, merge requests, CI/CD, and MCP.',
+    shortDescZh: 'GitLab SaaS 或私有实例项目、合并请求、CI/CD 与 MCP 连接。',
+    category: 'code',
+    source: 'builtin',
+    authMethods: ['oauth', 'token'],
+    defaultBaseUrl: 'https://gitlab.com',
+    defaultMcpUrl: 'https://gitlab.com/api/v4/mcp',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'GITLAB_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://gitlab.com/oauth/authorize',
+      tokenUrl: 'https://gitlab.com/oauth/token',
+      defaultScopes: ['api', 'read_user', 'mcp'],
+      pkce: true,
+    },
+    docsUrl: 'https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/',
+    fields: [
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://gitlab.com' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://gitlab.com/api/v4/mcp' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GITLAB_TOKEN' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'GitLab Application ID' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    shortDescEn: 'Read, search, draft, and organize Gmail threads via Google OAuth or MCP.',
+    shortDescZh: '通过 Google OAuth 或远程 MCP 读取、检索与管理 Gmail 邮件。',
+    category: 'communication',
+    source: 'builtin',
+    authMethods: ['oauth', 'token'],
+    defaultBaseUrl: 'https://gmail.googleapis.com',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'GMAIL_ACCESS_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      defaultScopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.compose',
+      ],
+      pkce: true,
+      extraAuthorizeParams: { access_type: 'offline', prompt: 'consent' },
+    },
+    docsUrl: 'https://developers.google.com/gmail/api',
+    fields: [
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://mcp.example.com/gmail/mcp' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Google OAuth Client ID' },
+      { key: 'oauthScopes', labelKey: 'fieldOAuthScopes', placeholder: 'gmail.readonly gmail.compose' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GMAIL_ACCESS_TOKEN' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'google-workspaces',
+    name: 'Google Workspaces',
+    shortDescEn: 'Google Drive, Docs, Sheets, Slides, and Calendar workspace integration.',
+    shortDescZh: '集成 Google Drive、Docs、Sheets、Slides 与日历协作能力。',
+    category: 'productivity',
+    source: 'builtin',
+    authMethods: ['oauth', 'token'],
+    defaultBaseUrl: 'https://www.googleapis.com',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'GOOGLE_WORKSPACE_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      defaultScopes: [
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/documents.readonly',
+        'https://www.googleapis.com/auth/spreadsheets.readonly',
+        'https://www.googleapis.com/auth/calendar.readonly',
+      ],
+      pkce: true,
+      extraAuthorizeParams: { access_type: 'offline', prompt: 'consent' },
+    },
+    docsUrl: 'https://developers.google.com/workspace',
+    fields: [
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://mcp.example.com/gworkspace/mcp' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Google OAuth Client ID' },
+      { key: 'oauthScopes', labelKey: 'fieldOAuthScopes', placeholder: 'drive.readonly calendar.readonly' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GOOGLE_WORKSPACE_TOKEN' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'vault-server',
+    name: 'Vault Server',
+    shortDescEn: 'HashiCorp Vault secrets, KV v2, dynamic credentials, and Vault MCP.',
+    shortDescZh: 'HashiCorp Vault 密钥引擎、KV v2、动态凭据与 Vault MCP 服务。',
+    category: 'security',
+    source: 'builtin',
+    authMethods: ['token', 'oauth'],
+    defaultBaseUrl: 'https://127.0.0.1:8200',
+    defaultAuthHeader: 'X-Vault-Token',
+    defaultAuthPrefix: '',
+    defaultEnvRef: 'VAULT_TOKEN',
+    docsUrl: 'https://developer.hashicorp.com/vault',
+    fields: [
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://vault.internal:8200', required: true },
+      { key: 'namespace', labelKey: 'fieldNamespace', placeholder: 'admin/prod' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://vault-mcp.internal/mcp' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'VAULT_TOKEN' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare',
+    shortDescEn: 'Cloudflare Workers, DNS, R2, D1, Zero Trust, and official Cloudflare MCP.',
+    shortDescZh: 'Cloudflare Workers、DNS、R2、D1、Zero Trust 与官方远程 MCP。',
+    category: 'cloud',
+    source: 'builtin',
+    authMethods: ['token', 'oauth'],
+    defaultBaseUrl: 'https://api.cloudflare.com/client/v4',
+    defaultMcpUrl: 'https://bindings.mcp.cloudflare.com/mcp',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'CLOUDFLARE_API_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://dash.cloudflare.com/oauth2/auth',
+      tokenUrl: 'https://dash.cloudflare.com/oauth2/token',
+      defaultScopes: ['account:read', 'zone:read', 'workers:write'],
+      pkce: true,
+    },
+    docsUrl: 'https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/',
+    fields: [
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://bindings.mcp.cloudflare.com/mcp' },
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://api.cloudflare.com/client/v4' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'CLOUDFLARE_API_TOKEN' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Cloudflare OAuth Client ID' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'aws-lightsail',
+    name: 'AWS Lightsail',
+    shortDescEn: 'AWS Lightsail instances, containers, snapshots, DNS, and AWS MCP.',
+    shortDescZh: 'AWS Lightsail 实例、容器、快照、DNS 与远程 MCP 接入。',
+    category: 'cloud',
+    source: 'builtin',
+    authMethods: ['token'],
+    defaultBaseUrl: 'https://lightsail.us-east-1.amazonaws.com',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'AWS_ACCESS_KEY_ID',
+    secondaryEnvRef: 'AWS_SECRET_ACCESS_KEY',
+    docsUrl: 'https://docs.aws.amazon.com/lightsail/',
+    fields: [
+      { key: 'region', labelKey: 'fieldRegion', placeholder: 'us-east-1' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://mcp.example.com/aws-lightsail/mcp' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'AWS_ACCESS_KEY_ID' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'gcp',
+    name: 'GCP',
+    shortDescEn: 'Google Cloud Platform projects, Compute Engine, Cloud Run, BigQuery, and MCP.',
+    shortDescZh: 'Google Cloud 项目、Compute Engine、Cloud Run、BigQuery 与 MCP。',
+    category: 'cloud',
+    source: 'builtin',
+    authMethods: ['oauth', 'token'],
+    defaultBaseUrl: 'https://cloudresourcemanager.googleapis.com',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'GOOGLE_OAUTH_ACCESS_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      defaultScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      pkce: true,
+      extraAuthorizeParams: { access_type: 'offline', prompt: 'consent' },
+    },
+    docsUrl: 'https://cloud.google.com/docs',
+    fields: [
+      { key: 'projectId', labelKey: 'fieldProjectId', placeholder: 'my-gcp-project-id' },
+      { key: 'region', labelKey: 'fieldRegion', placeholder: 'us-central1' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://mcp.example.com/gcp/mcp' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Google Cloud OAuth Client ID' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'GOOGLE_OAUTH_ACCESS_TOKEN' },
+    ],
+    supportsMcp: true,
+  },
+  {
+    id: 'linode-vps',
+    name: 'Linode VPS',
+    shortDescEn: 'Akamai / Linode VPS instances, NodeBalancers, Object Storage, and MCP.',
+    shortDescZh: 'Akamai / Linode VPS 实例、负载均衡、对象存储与远程 MCP。',
+    category: 'cloud',
+    source: 'builtin',
+    authMethods: ['token', 'oauth'],
+    defaultBaseUrl: 'https://api.linode.com/v4',
+    defaultAuthHeader: 'Authorization',
+    defaultAuthPrefix: 'Bearer',
+    defaultEnvRef: 'LINODE_TOKEN',
+    oauth: {
+      authorizeUrl: 'https://login.linode.com/oauth/authorize',
+      tokenUrl: 'https://login.linode.com/oauth/token',
+      defaultScopes: ['linodes:read_write', 'account:read_only'],
+      pkce: false,
+    },
+    docsUrl: 'https://techdocs.akamai.com/linode-api/reference/api',
+    fields: [
+      { key: 'baseUrl', labelKey: 'fieldBaseUrl', placeholder: 'https://api.linode.com/v4' },
+      { key: 'mcpUrl', labelKey: 'fieldMcpUrl', placeholder: 'https://mcp.example.com/linode/mcp' },
+      { key: 'envRef', labelKey: 'fieldEnvRef', placeholder: 'LINODE_TOKEN' },
+      { key: 'oauthClientId', labelKey: 'fieldOAuthClientId', placeholder: 'Linode OAuth Client ID' },
+    ],
+    supportsMcp: true,
+  },
+]
 
-async function refreshNow(
-  config: ResolvedConfig,
-  fetchImpl: typeof fetch,
-  key: string,
-  keepOnFailure: boolean,
-  epoch: number,
-): Promise<readonly string[]> {
-  const budget = createAttemptBudget(CATALOG_TIMEOUT_MS)
-  let modelsResult: PromiseSettledResult<unknown>
-  let tagsResult: PromiseSettledResult<unknown>
-  try {
-    [modelsResult, tagsResult] = await Promise.allSettled([
-      fetchJson(modelsUrlFor(config), config, fetchImpl, budget.signal),
-      fetchJson(tagsUrlFor(config), config, fetchImpl, budget.signal),
-    ])
-  } finally {
-    budget.dispose()
-  }
-  if (epoch !== generation) return Object.keys(GENERATED_MODELS)
-  if (modelsResult.status === 'fulfilled') {
-    const payload = modelsResult.value as ModelsPayload
-    const tags = tagsResult.status === 'fulfilled' ? tagsResult.value as TagsPayload : undefined
-    const live = Array.isArray(payload.models) && payload.models.length > 0
-      ? payload.models
-      : (Array.isArray(payload.data) ? (payload.data as LiveModel[]) : [])
-    if (live.length > 0) {
-      const ids = adoptLive(live, tags, key)
-      if (ids.length > 0) {
-        cache.set(key, { at: Date.now(), ids })
-        await persist(key, ids)
-        return ids
-      }
-    }
-    const fromData = Array.isArray(payload.data)
-      ? payload.data.map((entry) => str(entry.id)).filter((id): id is string => id !== undefined)
-      : []
-    const tagsPayload = tagsResult.status === 'fulfilled' ? tagsResult.value as TagsPayload : undefined
-    const fromTags = (tagsPayload?.models ?? [])
-      .map((entry) => str(entry.name) ?? str(entry.model))
-      .filter((id): id is string => id !== undefined)
-    const discovered = fromData.length > 0 ? fromData : fromTags
-    if (discovered.length > 0) {
-      for (const liveKey of liveMeta.keys()) {
-        if (liveKey.startsWith(`${key}|`)) liveMeta.delete(liveKey)
-      }
-      const ids = discovered
-      cache.set(key, { at: Date.now(), ids })
-      await persist(key, ids)
-      return ids
-    }
-  }
-  if (keepOnFailure) {
-    const stale = cache.get(key)
-    if (stale !== undefined) return stale.ids
-  }
-  const fallback = Object.keys(GENERATED_MODELS)
-  if (epoch === generation) cache.set(key, { at: Date.now(), ids: fallback })
-  return fallback
-}
-
-function refreshInBackground(
-  config: ResolvedConfig,
-  fetchImpl: typeof fetch,
-  key: string,
-): void {
-  if (inflight.has(key)) return
-  const epoch = generation
-  const task = refreshNow(config, fetchImpl, key, true, epoch)
-    .catch((err: unknown) => { bestEffortFailed('catalog:fetchModels', err); return cache.get(key)?.ids ?? Object.keys(GENERATED_MODELS) })
-    .finally(() => { inflight.delete(key) })
-  inflight.set(key, task)
-  void task
-}
-
-export function clearCatalogCache(): void {
-  generation += 1
-  cache.clear()
-  inflight.clear()
-  liveMeta.clear()
-  diskLoaded.clear()
-  clearCatalogSnapshot()
-}
-
-export function baseMeta(id: string, base: string): OllamaCloudModelMeta {
-  const meta = liveMeta.get(liveKey(base, id)) ?? GENERATED_MODELS[id]
-  return meta === undefined ? { ...FALLBACK_META, id, name: id } : meta
-}
-
-export interface EffectiveModel extends OllamaCloudModelMeta {
-  readonly transport: TransportId
-}
-
-export function manualModelFor(id: string, config: ResolvedConfig): ManualModel | undefined {
-  return config.manualModels.find((entry) => entry.id === id)
-}
-
-export function effectiveModel(id: string, config: ResolvedConfig): EffectiveModel {
-  const meta = baseMeta(id, config.apiBase)
-  const manual = manualModelFor(id, config)
-  const override = config.modelOverrides[id]
-  return {
-    ...meta,
-    name: manual?.name ?? meta.name,
-    transport: config.modelTransports[id] ?? meta.transport ?? config.transport,
-    contextWindow: config.contextWindowOverrides[id]
-      ?? override?.contextWindow
-      ?? manual?.contextWindow
-      ?? config.contextWindow
-      ?? meta.contextWindow,
-    maxTokens: manual?.maxTokens ?? meta.maxTokens,
-    input: (override?.image ?? manual?.image) === true
-      ? ['text', 'image']
-      : (override?.image ?? manual?.image) === false ? ['text'] : meta.input,
-    reasoning: override?.reasoningEfforts ?? manual?.reasoningEfforts ?? meta.reasoning,
-    reasoningToggle: override?.thinking ?? manual?.thinking ?? meta.reasoningToggle,
-    ...((override?.defaultEffort ?? manual?.defaultReasoning ?? meta.defaultReasoning) === undefined
-      ? {}
-      : { defaultReasoning: override?.defaultEffort ?? manual?.defaultReasoning ?? meta.defaultReasoning }),
-    tools: manual?.tools ?? meta.tools,
-    available: override?.enabled === false || manual?.enabled === false ? false : meta.available,
-  }
-}
-
-/** Effective per-request output default; `0` means "omit the field". */
-export function effectiveMaxTokens(meta: OllamaCloudModelMeta, config: ResolvedConfig): number | undefined {
-  const ceiling = Math.min(meta.maxTokens, DEFAULT_GENERATE_MAX_TOKENS)
-  if (config.maxOutputTokens === undefined) return ceiling
-  if (config.maxOutputTokens === 0) return undefined
-  return Math.min(ceiling, config.maxOutputTokens)
-}
-
-export function modelVisible(id: string, config: ResolvedConfig): boolean {
-  const override = config.modelVisibility[id]
-  if (override !== undefined) return override
-  if (config.showAllModels) return true
-  return config.visibleModels.includes(id)
-}
-
-export function modelAvailable(id: string, config: ResolvedConfig): boolean {
-  const manual = manualModelFor(id, config)
-  if (config.modelOverrides[id]?.enabled === false || manual?.enabled === false) return false
-  if (!config.filterModelsByPlan) return true
-  return effectiveModel(id, config).available !== false
-}
-
-export function sortForPicker(
-  ids: readonly string[],
-  config: ResolvedConfig,
-  unfiltered = false,
-): string[] {
-  const order = new Map([
-    ...config.modelOrder.map((id, index) => [id, index] as const),
-    ...config.visibleModels.map((id, index) => [id, config.modelOrder.length + index] as const),
-  ])
-  return ids
-    .filter((id) => unfiltered || (modelVisible(id, config) && modelAvailable(id, config)))
-    .sort((left, right) => {
-      const leftOrder = order.get(left)
-      const rightOrder = order.get(right)
-      if (leftOrder !== undefined || rightOrder !== undefined) {
-        if (leftOrder === undefined) return 1
-        if (rightOrder === undefined) return -1
-        if (leftOrder !== rightOrder) return leftOrder - rightOrder
-      }
-      const a = effectiveModel(left, config)
-      const b = effectiveModel(right, config)
-      if (a.free !== b.free) return a.free ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-}
-
-export function formatContext(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`
-  return `${Math.round(value / 1024)}K`
-}
-
-export function describeModel(meta: EffectiveModel, config: ResolvedConfig): string {
-  const parts = [meta.transport, `${formatContext(meta.contextWindow)} context`]
-  if (meta.free) parts.push('FREE')
-  else parts.push(formatPrice(priceFor(meta.id, config.priceOverrides)))
-  if (meta.input.includes('image')) parts.push('Image')
-  if (meta.tools) parts.push('Tools')
-  if (meta.reasoning.length > 0) parts.push(`reasoning: ${meta.reasoning.join('/')}`)
-  return parts.join(' · ')
+export function findBuiltinConnector(id: string): ConnectorDefinition | undefined {
+  return BUILTIN_CONNECTORS.find((item) => item.id === id)
 }
